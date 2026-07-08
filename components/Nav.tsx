@@ -1,17 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getRole, signOut, type Role } from "@/lib/auth";
 
 /*
-  Left sidebar. Only "Home" exists to start with — everything else is the roadmap
-  your team builds. Each unbuilt screen shows a "build me" tag. When you finish a
-  screen, flip its `built` to true (and point `href` at the route you created) so it
-  turns into a real link.
+  Left sidebar. Only "Home" and "Sign In" exist to start with — everything else
+  is the roadmap your team builds. Each unbuilt screen shows a "build me" tag.
+  When you finish a screen, flip its `built` to true (and point `href` at the
+  route you created) so it turns into a real link.
 */
 const LINKS: { href: string; label: string; built: boolean }[] = [
   { href: "/", label: "Home", built: true },
-  { href: "/signin", label: "Sign In", built: false },
+  { href: "/signin", label: "Sign In", built: true },
   { href: "/masters/customers", label: "Customer Master", built: false },
   { href: "/masters/gl", label: "GL Master", built: false },
   { href: "/invoices", label: "Sales Invoices", built: false },
@@ -26,12 +28,25 @@ const LINKS: { href: string; label: string; built: boolean }[] = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const [role, setRole] = useState<Role | null>(null);
+
+  // Re-check the signed-in role whenever the page changes.
+  useEffect(() => {
+    setRole(getRole());
+  }, [pathname]);
+
+  function handleSignOut() {
+    signOut();
+    router.replace("/signin");
+  }
 
   return (
     <nav className="flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4">
       <div className="mb-4 px-2">
         <p className="text-xs font-semibold uppercase tracking-widest text-brand">Verve</p>
         <h1 className="text-lg font-bold text-slate-900">AR Manager</h1>
+        {role && <p className="mt-1 text-xs text-slate-400">Signed in as {role}</p>}
       </div>
       {LINKS.map((l) => {
         const active = pathname === l.href;
@@ -60,6 +75,14 @@ export function Nav() {
           </Link>
         );
       })}
+      {role && (
+        <button
+          onClick={handleSignOut}
+          className="mt-auto rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+        >
+          Sign out
+        </button>
+      )}
     </nav>
   );
 }
