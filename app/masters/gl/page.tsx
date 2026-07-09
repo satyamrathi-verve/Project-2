@@ -21,25 +21,26 @@ import { supabase, isConfigured } from "@/lib/supabase";
 import { NotConfigured } from "@/components/NotConfigured";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
-import { FormField, inputClass } from "@/components/FormField";
+import { FormField, FormSection, inputClass } from "@/components/FormField";
+import { TableSkeleton } from "@/components/ui";
+import { Badge, type BadgeTone } from "@/components/Badge";
 import type { GLAccount } from "@/lib/types";
 
 const ACCOUNT_TYPES: GLAccount["type"][] = ["asset", "liability", "income", "expense"];
 
-// Colour badge per type so the four groups are visually distinct at a glance.
-const TYPE_STYLES: Record<GLAccount["type"], string> = {
-  asset: "bg-blue-100 text-blue-700",
-  liability: "bg-amber-100 text-amber-700",
-  income: "bg-emerald-100 text-emerald-700",
-  expense: "bg-rose-100 text-rose-700",
+// One distinct, meaningful tone per type — assets/income lean toward the
+// "positive" cool tones, liabilities/expenses toward the "caution" warm
+// tones, reusing the same Badge component (and tone vocabulary) as every
+// other status pill in the app instead of a one-off local badge.
+const TYPE_TONE: Record<GLAccount["type"], BadgeTone> = {
+  asset: "emerald",
+  liability: "amber",
+  income: "teal",
+  expense: "rose",
 };
 
-function TypeBadge({ type }: { type: GLAccount["type"] }) {
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium capitalize ${TYPE_STYLES[type]}`}>
-      {type}
-    </span>
-  );
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // Empty shape for the add/edit form. `id` stays null while adding.
@@ -150,9 +151,13 @@ export default function GLMasterPage() {
   }
 
   const columns: Column<GLAccount>[] = [
-    { key: "code", header: "Code", className: "font-mono text-xs" },
+    { key: "code", header: "Code", className: "font-mono text-xs text-slate-900 dark:text-white" },
     { key: "name", header: "Name" },
-    { key: "type", header: "Type", render: (row) => <TypeBadge type={row.type} /> },
+    {
+      key: "type",
+      header: "Type",
+      render: (row) => <Badge label={capitalize(row.type)} tone={TYPE_TONE[row.type]} />,
+    },
     { key: "parent_group", header: "Parent Group", render: (row) => row.parent_group ?? "—" },
     {
       key: "actions",
@@ -161,7 +166,7 @@ export default function GLMasterPage() {
       render: (row) => (
         <button
           onClick={() => openEditForm(row)}
-          className="text-xs font-medium text-brand hover:underline"
+          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 opacity-0 transition-all group-hover:opacity-100 hover:bg-brand/10 hover:text-brand focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:text-slate-500"
         >
           Edit
         </button>
@@ -181,7 +186,7 @@ export default function GLMasterPage() {
         action={
           <button
             onClick={openAddForm}
-            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
           >
             + Add Account
           </button>
@@ -198,99 +203,141 @@ export default function GLMasterPage() {
       </div>
 
       {loadError && (
-        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           Couldn&apos;t load GL accounts: {loadError}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400">
-          Loading GL accounts…
-        </div>
+        <TableSkeleton rows={7} cols={5} />
       ) : (
         <DataTable
           columns={columns}
           rows={filtered}
-          empty={search ? "No accounts match your search." : "No GL accounts yet. Add the first one above."}
+          stickyHeader
+          empty={
+            <div className="flex flex-col items-center gap-3 py-6">
+              <span className="text-sm text-slate-400 dark:text-slate-500">
+                {search ? "No accounts match your search." : "No GL accounts yet."}
+              </span>
+              {!search && (
+                <button
+                  onClick={openAddForm}
+                  className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                >
+                  + Add Account
+                </button>
+              )}
+            </div>
+          }
         />
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 dark:bg-black/50">
           <form
             onSubmit={handleSave}
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg"
+            className="themed w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900"
           >
-            <h3 className="mb-4 text-lg font-bold text-slate-900">
-              {form.id ? "Edit GL Account" : "Add GL Account"}
-            </h3>
-
-            <div className="flex flex-col gap-4">
-              <FormField label="GL Code">
-                <input
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g. 4000"
-                />
-              </FormField>
-
-              <FormField label="GL Name">
-                <input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g. Sales / Professional Fees"
-                />
-              </FormField>
-
-              <FormField label="Account Type">
-                <select
-                  value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as GLAccount["type"] })}
-                  className={inputClass}
-                >
-                  {ACCOUNT_TYPES.map((t) => (
-                    <option key={t} value={t} className="capitalize">
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-
-              <FormField label="Parent Group (optional)">
-                <input
-                  value={form.parent_group}
-                  onChange={(e) => setForm({ ...form, parent_group: e.target.value })}
-                  className={inputClass}
-                  placeholder="e.g. Current Assets"
-                />
-              </FormField>
-
-              {/*
-                Future placeholders — not in gl_accounts today, so not wired
-                up. Add the columns in Supabase first if these become real:
-                Short Name, Description, Account Category, GL Subtype,
-                Normal Balance, Active/Inactive.
-              */}
-            </div>
-
-            {formError && (
-              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{formError}</p>
-            )}
-
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                {form.id ? "Edit GL Account" : "Add GL Account"}
+              </h3>
               <button
                 type="button"
                 onClick={closeForm}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
+                className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="px-6 py-5">
+              <FormSection title="Account Details">
+                <FormField label="GL Code">
+                  <input
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    className={inputClass}
+                    placeholder="e.g. 4000"
+                  />
+                </FormField>
+
+                <FormField label="GL Name">
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    className={inputClass}
+                    placeholder="e.g. Sales / Professional Fees"
+                  />
+                </FormField>
+
+                <FormField label="Account Type">
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={form.type}
+                      onChange={(e) => setForm({ ...form, type: e.target.value as GLAccount["type"] })}
+                      className={`${inputClass} flex-1`}
+                    >
+                      {ACCOUNT_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {capitalize(t)}
+                        </option>
+                      ))}
+                    </select>
+                    {/* Live preview — shows exactly how this type renders in the table. */}
+                    <Badge label={capitalize(form.type)} tone={TYPE_TONE[form.type]} />
+                  </div>
+                </FormField>
+
+                <FormField label="Parent Group (optional)">
+                  <input
+                    value={form.parent_group}
+                    onChange={(e) => setForm({ ...form, parent_group: e.target.value })}
+                    className={inputClass}
+                    placeholder="e.g. Current Assets"
+                  />
+                </FormField>
+
+                {/*
+                  Future placeholders — not in gl_accounts today, so not wired
+                  up. Add the columns in Supabase first if these become real:
+                  Short Name, Description, Account Category, GL Subtype,
+                  Normal Balance, Active/Inactive.
+                */}
+              </FormSection>
+
+              {formError && (
+                <p className="flex items-start gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    className="mt-0.5 h-4 w-4 flex-none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                  </svg>
+                  <span>{formError}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-60"
               >
                 {saving ? "Saving…" : form.id ? "Save Changes" : "Add Account"}
               </button>

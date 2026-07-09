@@ -50,7 +50,8 @@ export function DataTable<T extends { id: string }>({
 }: {
   columns: Column<T>[];
   rows: T[];
-  empty?: string;
+  /** Plain string or a richer node (e.g. message + an inline "Add" button). */
+  empty?: ReactNode;
   stickyHeader?: boolean;
   sort?: SortState;
   onSortChange?: (key: string) => void;
@@ -84,7 +85,7 @@ export function DataTable<T extends { id: string }>({
         <table className="w-full text-sm">
           <thead>
             <tr
-              className={`border-b border-slate-200 bg-slate-50/90 text-left backdrop-blur dark:border-slate-800 dark:bg-slate-800/60 ${
+              className={`border-b-2 border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/60 ${
                 stickyHeader ? "sticky top-0 z-10" : ""
               }`}
             >
@@ -113,7 +114,7 @@ export function DataTable<T extends { id: string }>({
                   return (
                     <th
                       key={c.key}
-                      className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${c.className ?? ""}`}
+                      className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}
                     >
                       <button
                         onClick={() => onSortChange(c.key)}
@@ -130,7 +131,7 @@ export function DataTable<T extends { id: string }>({
                 return (
                   <th
                     key={c.key}
-                    className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 ${c.className ?? ""}`}
+                    className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}
                   >
                     {c.header}
                   </th>
@@ -153,7 +154,7 @@ export function DataTable<T extends { id: string }>({
                 <tr
                   key={row.id}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={`border-b border-slate-100 transition-colors last:border-0 hover:bg-brand/[0.03] dark:border-slate-800 dark:hover:bg-brand/[0.08] ${
+                  className={`group border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 ${
                     onRowClick ? "cursor-pointer" : ""
                   } ${selectable && sel.has(row.id) ? "bg-brand/[0.04] dark:bg-brand/[0.1]" : ""} ${
                     rowClassName ? rowClassName(row) : ""
