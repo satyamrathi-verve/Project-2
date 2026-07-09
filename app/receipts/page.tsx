@@ -8,6 +8,7 @@ import type { Customer, Receipt, ReceiptMode } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { useTableSort } from "@/lib/useTableSort";
+import { sortRows, type SortColumn } from "@/lib/sortRows";
 import { NotConfigured } from "@/components/NotConfigured";
 import { useColumnCustomizer, ColumnSettingsTrigger } from "@/components/useColumnCustomizer";
 import {
@@ -43,7 +44,17 @@ interface ReceiptRow extends Receipt {
   unallocated: number;
 }
 
-type SortKey = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
+// How each column is read + compared when the header sort is applied. Uses the
+// shared SortColumn shape so any list screen can describe its columns the same way.
+const RECEIPT_SORT_COLUMNS: Record<string, SortColumn<ReceiptRow>> = {
+  receipt_no: { accessor: (r) => r.receipt_no, type: "text" }, // alphanumeric
+  receipt_date: { accessor: (r) => r.receipt_date, type: "date" }, // chronological
+  customer: { accessor: (r) => r.customerName, type: "text" }, // alphabetical
+  mode: { accessor: (r) => r.mode, type: "text" }, // alphabetical
+  amount: { accessor: (r) => Number(r.amount), type: "number" }, // numeric
+  allocation: { accessor: (r) => (r.unallocated > EPS ? "On account" : "Fully allocated"), type: "text" }, // alphabetical
+  reference: { accessor: (r) => r.reference ?? "", type: "text" }, // alphanumeric
+};
 
 // ---- customizable columns ---------------------------------------------------
 type ColKey = "receipt_no" | "receipt_date" | "customer" | "mode" | "amount" | "allocation" | "reference";
@@ -68,12 +79,10 @@ export default function ReceiptListPage() {
 
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | ReceiptMode>("all");
-  const [sort, setSort] = useState<SortKey>("date_desc");
 
-  // Column-header sort STATE (reusable hook). Tracks the active column + direction
-  // only — the data is intentionally NOT reordered by this yet; clicking a header
-  // just updates the state and the header arrow. Actual sorting comes next.
-  const { sort: columnSort, toggleSort } = useTableSort();
+  // Column-header sort is the single source of truth for row order (applied in
+  // the `visible` memo below). Defaults to newest receipts first.
+  const { sort: columnSort, toggleSort } = useTableSort({ initial: { key: "receipt_date", dir: "desc" } });
 
   // Row selection (presentation state only).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -142,9 +151,11 @@ export default function ReceiptListPage() {
   }, [rows]);
 
   // ---- filter + sort -------------------------------------------------------
+  // Filter first, then apply the active column sort. Memoised so re-sorting is
+  // instant (no refetch) and only recomputes when a dependency changes.
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let out = rows.filter((r) => {
+    const filtered = rows.filter((r) => {
       if (modeFilter !== "all" && r.mode !== modeFilter) return false;
       if (!q) return true;
       return (
@@ -153,23 +164,11 @@ export default function ReceiptListPage() {
         (r.reference ?? "").toLowerCase().includes(q)
       );
     });
-    out = [...out].sort((a, b) => {
-      switch (sort) {
-        case "date_asc":
-          return a.receipt_date.localeCompare(b.receipt_date);
-        case "amount_desc":
-          return Number(b.amount) - Number(a.amount);
-        case "amount_asc":
-          return Number(a.amount) - Number(b.amount);
-        default:
-          return b.receipt_date.localeCompare(a.receipt_date);
-      }
-    });
-    return out;
-  }, [rows, search, modeFilter, sort]);
+    return sortRows(filtered, columnSort, RECEIPT_SORT_COLUMNS);
+  }, [rows, search, modeFilter, columnSort]);
 
-  // NOTE: `sortable` here only turns on the up/down header indicators. Clicking
-  // is wired to a no-op below — sorting logic is intentionally not implemented yet.
+  // Every column is sortable; clicking a header sets the sort state and reorders
+  // rows via the `visible` memo (see RECEIPT_SORT_COLUMNS).
   const allColumns: Record<ColKey, Column<ReceiptRow>> = {
     receipt_no: {
       key: "receipt_no",
@@ -316,16 +315,6 @@ export default function ReceiptListPage() {
             <option value="upi">UPI</option>
             <option value="neft">NEFT</option>
           </select>
-          <select
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
-          >
-            <option value="date_desc">Newest first</option>
-            <option value="date_asc">Oldest first</option>
-            <option value="amount_desc">Amount: high → low</option>
-            <option value="amount_asc">Amount: low → high</option>
-          </select>
         </div>
       </div>
 
@@ -360,8 +349,6 @@ export default function ReceiptListPage() {
             selectedIds={selected}
             onSelectionChange={(ids) => setSelected(new Set(ids))}
             headerAccessory={customizeButton}
-            /* Header clicks update the sort state (active column + direction) and
-               drive the arrow; data is not reordered by this yet. */
             sort={columnSort}
             onSortChange={toggleSort}
             empty="No receipts match your search."
