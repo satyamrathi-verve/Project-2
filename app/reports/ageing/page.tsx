@@ -26,6 +26,7 @@ import { AgeMatrix } from "./AgeMatrix";
 import { RiskMatrix, type RiskRow } from "./RiskMatrix";
 import { RiskDistribution } from "./RiskDistribution";
 import { CollectionPriorityPanel } from "./CollectionPriorityPanel";
+import { computeFollowUpStatus, type FollowUpStatusCounts } from "./followupStatus";
 
 /*
   Report – AR Ageing (read-only).
@@ -242,6 +243,10 @@ export default function ARAgeingPage() {
     ).length;
     return { buckets, totalOutstanding, totalOverdue, overdueCustomers };
   }, [customerRows]);
+
+  // Follow-up Status widget — see followupStatus.ts for why this returns
+  // "Not Available" today and where to wire in real data later.
+  const followUpStatus = useMemo(() => computeFollowUpStatus(), []);
 
   // --- New analysis sections: Age Matrix / Risk Matrix / Insights ---------
   // These read from the full, unfiltered invoiceRows (only "As On Date"
@@ -497,6 +502,7 @@ export default function ARAgeingPage() {
             <KpiCard label="61–90 Days" value={formatINR(kpis.buckets.d61_90)} />
             <KpiCard label="Above 90 Days" value={formatINR(kpis.buckets.d90_plus)} emphasis />
             <KpiCard label="Overdue Customers" value={String(kpis.overdueCustomers)} />
+            <FollowUpStatusCard counts={followUpStatus} />
           </div>
 
           {/* --- New: Interactive Age Matrix & Customer Risk Matrix -------- */}
@@ -573,6 +579,38 @@ function KpiCard({ label, value, emphasis }: { label: string; value: string; emp
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
       <p className={`mt-1 text-lg font-bold ${emphasis ? "text-red-600" : "text-slate-900"}`}>{value}</p>
+    </div>
+  );
+}
+
+const FOLLOW_UP_ROWS: { key: keyof FollowUpStatusCounts; label: string; dot: string }[] = [
+  { key: "dueToday", label: "Due Today", dot: "bg-amber-400" },
+  { key: "overdue", label: "Overdue", dot: "bg-orange-500" },
+  { key: "upcoming", label: "Upcoming", dot: "bg-emerald-500" },
+  { key: "notScheduled", label: "Not Scheduled", dot: "bg-slate-300" },
+];
+
+/** Compact summary card, same border/padding/typography as the KPI tiles beside it. */
+function FollowUpStatusCard({ counts }: { counts: FollowUpStatusCounts }) {
+  return (
+    <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Follow-up Status</p>
+      <div className="mt-2 flex flex-col gap-1.5">
+        {FOLLOW_UP_ROWS.map((row) => {
+          const value = counts[row.key];
+          return (
+            <div key={row.key} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2 text-slate-600">
+                <span className={`h-2 w-2 flex-none rounded-full ${row.dot}`} />
+                {row.label}
+              </span>
+              <span className={`font-semibold ${value === null ? "text-slate-400" : "text-slate-900"}`}>
+                {value === null ? "Not Available" : value}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
