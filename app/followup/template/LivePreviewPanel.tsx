@@ -8,6 +8,7 @@ import type { AttachmentOption } from "./reminderTemplateConfig";
 const ACCENT_BAR: Record<ReminderTypeConfig["accent"], string> = {
   slate: "bg-slate-400",
   blue: "bg-blue-500",
+  teal: "bg-teal-500",
   amber: "bg-amber-500",
   emerald: "bg-emerald-500",
   rose: "bg-rose-500",
