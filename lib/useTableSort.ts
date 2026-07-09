@@ -33,12 +33,18 @@ export interface UseTableSortOptions {
   initial?: SortState;
   /** Direction applied the first time a column becomes active. Defaults to "asc". */
   defaultDirection?: SortDirection;
+  /**
+   * Whether a third click on the active column clears the sort (returns to the
+   * original order). Defaults to true — the Zoho-style asc → desc → off cycle.
+   * Set false for a 2-state asc <-> desc toggle that never clears.
+   */
+  allowUnsorted?: boolean;
 }
 
 export interface TableSort {
-  /** The active sort, or `undefined` when no column is selected. */
+  /** The active sort, or `undefined` when no column is selected (original order). */
   sort: SortState | undefined;
-  /** Header-click handler: activates a column, or flips it if already active. */
+  /** Header-click handler: cycles the clicked column through asc → desc → off. */
   toggleSort: (key: string) => void;
   /** Set or clear the sort directly (e.g. to restore a saved preference). */
   setSort: (sort: SortState | undefined) => void;
@@ -46,18 +52,26 @@ export interface TableSort {
   isActive: (key: string) => boolean;
 }
 
-export function useTableSort({ initial, defaultDirection = "asc" }: UseTableSortOptions = {}): TableSort {
+export function useTableSort({
+  initial,
+  defaultDirection = "asc",
+  allowUnsorted = true,
+}: UseTableSortOptions = {}): TableSort {
   const [sort, setSort] = useState<SortState | undefined>(initial);
 
+  // Tri-state cycle, one active column at a time:
+  //   new column    -> ascending          (1st click)
+  //   active + asc   -> descending         (2nd click)
+  //   active + desc  -> cleared / original (3rd click; or back to asc if reset off)
   const toggleSort = useCallback(
     (key: string) => {
-      setSort((prev) =>
-        prev && prev.key === key
-          ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } // same column -> flip direction
-          : { key, dir: defaultDirection } // new column -> activate it (only one active at a time)
-      );
+      setSort((prev) => {
+        if (!prev || prev.key !== key) return { key, dir: defaultDirection };
+        if (prev.dir === "asc") return { key, dir: "desc" };
+        return allowUnsorted ? undefined : { key, dir: defaultDirection };
+      });
     },
-    [defaultDirection]
+    [defaultDirection, allowUnsorted]
   );
 
   const isActive = useCallback((key: string) => sort?.key === key, [sort]);

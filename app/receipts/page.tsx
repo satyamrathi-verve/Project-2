@@ -80,9 +80,10 @@ export default function ReceiptListPage() {
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | ReceiptMode>("all");
 
-  // Column-header sort is the single source of truth for row order (applied in
-  // the `visible` memo below). Defaults to newest receipts first.
-  const { sort: columnSort, toggleSort } = useTableSort({ initial: { key: "receipt_date", dir: "desc" } });
+  // Column-header sort is the single source of truth for row order (applied in the
+  // `visible` memo). Starts unsorted, so rows show in their original fetch order
+  // (newest first) until a header is clicked — and a third click returns to it.
+  const { sort: columnSort, toggleSort } = useTableSort();
 
   // Row selection (presentation state only).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -168,8 +169,9 @@ export default function ReceiptListPage() {
   }, [rows, search, modeFilter, columnSort]);
 
   // Every column is sortable; clicking a header sets the sort state and reorders
-  // rows via the `visible` memo (see RECEIPT_SORT_COLUMNS).
-  const allColumns: Record<ColKey, Column<ReceiptRow>> = {
+  // rows via the `visible` memo (see RECEIPT_SORT_COLUMNS). Memoised so the column
+  // definitions keep a stable identity across renders.
+  const allColumns: Record<ColKey, Column<ReceiptRow>> = useMemo(() => ({
     receipt_no: {
       key: "receipt_no",
       header: "Receipt #",
@@ -236,9 +238,9 @@ export default function ReceiptListPage() {
           <span className="text-slate-400 dark:text-slate-500">—</span>
         ),
     },
-  };
+  }), []);
 
-  const columns = orderedKeys.map((k) => allColumns[k]);
+  const columns = useMemo(() => orderedKeys.map((k) => allColumns[k]), [orderedKeys, allColumns]);
 
   const customizeButton = <ColumnSettingsTrigger onCustomize={openCustomizeModal} onReset={requestReset} />;
 

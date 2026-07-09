@@ -18,6 +18,27 @@ export interface SortState {
 }
 
 /*
+  Zoho-style dual sort chevrons: both arrows are always visible; the one matching
+  the active direction is highlighted (brand) while the other stays muted, with a
+  smooth colour transition. `dir` is undefined when this column isn't the active
+  sort, so both arrows read as muted.
+*/
+function SortArrows({ dir }: { dir?: "asc" | "desc" }) {
+  const activeCls = "text-brand dark:text-blue-400";
+  const mutedCls = "text-slate-300 dark:text-slate-600";
+  return (
+    <span aria-hidden className="inline-flex flex-col justify-center leading-[0]">
+      <svg width="7" height="4" viewBox="0 0 8 5" className={`transition-colors duration-200 ${dir === "asc" ? activeCls : mutedCls}`}>
+        <path d="M4 0 8 5 0 5Z" fill="currentColor" />
+      </svg>
+      <svg width="7" height="4" viewBox="0 0 8 5" className={`mt-[2px] transition-colors duration-200 ${dir === "desc" ? activeCls : mutedCls}`}>
+        <path d="M0 0 8 0 4 5Z" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
+/*
   A plain, reusable table. Copy this pattern for every list screen (invoices,
   receipts, GL accounts…). Pass your columns and rows; it handles the empty state.
 
@@ -129,9 +150,7 @@ export function DataTable<T extends { id: string }>({
                         className="-mx-1.5 -my-1 inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 align-middle uppercase tracking-wide transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                       >
                         {c.header}
-                        <span className={`text-[10px] ${active ? "text-slate-500 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
-                          {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
-                        </span>
+                        <SortArrows dir={active ? sort!.dir : undefined} />
                       </button>
                     </th>
                   );
