@@ -234,10 +234,13 @@ export default function ReceiptListPage() {
     setMenuAt(null);
   };
 
+  // NOTE: `sortable` here only turns on the up/down header indicators. Clicking
+  // is wired to a no-op below — sorting logic is intentionally not implemented yet.
   const allColumns: Record<ColKey, Column<ReceiptRow>> = {
     receipt_no: {
       key: "receipt_no",
       header: "Receipt #",
+      sortable: true,
       render: (r) => (
         <Link
           href={`/receipts/${r.id}`}
@@ -251,11 +254,13 @@ export default function ReceiptListPage() {
     receipt_date: {
       key: "receipt_date",
       header: "Date",
+      sortable: true,
       render: (r) => <span className="text-slate-600 dark:text-slate-300">{r.receipt_date}</span>,
     },
     customer: {
       key: "customer",
       header: "Customer",
+      sortable: true,
       render: (r) => (
         <span className="flex items-center gap-3">
           <Avatar name={r.customerName} size="sm" />
@@ -263,17 +268,19 @@ export default function ReceiptListPage() {
         </span>
       ),
     },
-    mode: { key: "mode", header: "Mode", render: (r) => <ModeBadge mode={r.mode} /> },
+    mode: { key: "mode", header: "Mode", sortable: true, render: (r) => <ModeBadge mode={r.mode} /> },
     amount: {
       key: "amount",
       header: "Amount",
       className: "text-right",
+      sortable: true,
       render: (r) => <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{inr(Number(r.amount))}</span>,
     },
     allocation: {
       key: "allocation",
       header: "Allocation",
       className: "text-right",
+      sortable: true,
       render: (r) =>
         r.unallocated > EPS ? (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
@@ -288,6 +295,7 @@ export default function ReceiptListPage() {
     reference: {
       key: "reference",
       header: "Reference #",
+      sortable: true,
       render: (r) =>
         r.reference ? (
           <span className="text-slate-600 dark:text-slate-300">{r.reference}</span>
@@ -431,6 +439,8 @@ export default function ReceiptListPage() {
             selectedIds={selected}
             onSelectionChange={(ids) => setSelected(new Set(ids))}
             headerAccessory={customizeButton}
+            /* Shows the sort indicators; sorting itself is not wired yet. */
+            onSortChange={() => {}}
             empty="No receipts match your search."
           />
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">

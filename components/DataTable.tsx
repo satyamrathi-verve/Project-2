@@ -117,10 +117,10 @@ export function DataTable<T extends { id: string }>({
                     >
                       <button
                         onClick={() => onSortChange(c.key)}
-                        className="flex items-center gap-1 hover:text-slate-900 dark:hover:text-slate-100"
+                        className="-mx-1.5 -my-1 inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 align-middle uppercase tracking-wide transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                       >
                         {c.header}
-                        <span className="text-[10px] text-slate-400">
+                        <span className={`text-[10px] ${active ? "text-slate-500 dark:text-slate-300" : "text-slate-400 dark:text-slate-500"}`}>
                           {active ? (sort!.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
