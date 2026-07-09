@@ -8,6 +8,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { FormField, inputClass } from "@/components/FormField";
 import type { Customer } from "@/lib/types";
+import { CustomerHealthCard } from "./CustomerHealthCard";
+import { computeCustomerHealth, type CustomerHealth } from "./customerHealth";
 
 /*
   Customer Master
@@ -74,6 +76,71 @@ export default function CustomerMasterPage() {
   const [saving, setSaving] = useState(false);
 
   const [banner, setBanner] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Customer Health Card — shown for one customer at a time, fetched on demand
+  // when "View Health" is clicked. Nothing here is saved back to Supabase.
+  const [viewingCustomerId, setViewingCustomerId] = useState<string | null>(null);
+  const [health, setHealth] = useState<CustomerHealth | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!viewingCustomerId || !supabase) return;
+    let cancelled = false;
+
+    async function loadHealth() {
+      setHealthLoading(true);
+      setHealthError(null);
+      const customer = customers.find((c) => c.id === viewingCustomerId);
+      if (!customer) {
+        setHealthLoading(false);
+        return;
+      }
+      const [invoicesRes, receiptsRes] = await Promise.all([
+        supabase!.from("invoices").select("*").eq("customer_id", viewingCustomerId),
+        supabase!.from("receipts").select("*").eq("customer_id", viewingCustomerId),
+      ]);
+      if (cancelled) return;
+      const firstError = invoicesRes.error ?? receiptsRes.error;
+      if (firstError) {
+        setHealthError(firstError.message);
+        setHealthLoading(false);
+        return;
+      }
+      const invoiceIds = (invoicesRes.data ?? []).map((inv) => inv.id);
+      const allocationsRes = invoiceIds.length
+        ? await supabase!.from("receipt_allocations").select("*").in("invoice_id", invoiceIds)
+        : { data: [], error: null };
+      if (cancelled) return;
+      if (allocationsRes.error) {
+        setHealthError(allocationsRes.error.message);
+        setHealthLoading(false);
+        return;
+      }
+      setHealth(
+        computeCustomerHealth(customer, invoicesRes.data ?? [], allocationsRes.data ?? [], receiptsRes.data ?? [])
+      );
+      setHealthLoading(false);
+    }
+
+    loadHealth();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingCustomerId, customers]);
+
+  const viewingCustomer = viewingCustomerId ? customers.find((c) => c.id === viewingCustomerId) ?? null : null;
+
+  function handleViewHealth(c: Customer) {
+    setHealth(null);
+    setViewingCustomerId(c.id);
+  }
+
+  function closeHealthCard() {
+    setViewingCustomerId(null);
+    setHealth(null);
+    setHealthError(null);
+  }
 
   async function loadCustomers() {
     if (!supabase) return;
@@ -228,14 +295,22 @@ export default function CustomerMasterPage() {
     {
       key: "action",
       header: "",
-      className: "text-right",
+      className: "text-right whitespace-nowrap",
       render: (r) => (
-        <button
-          onClick={() => openEditForm(r)}
-          className="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
-        >
-          Edit
-        </button>
+        <>
+          <button
+            onClick={() => handleViewHealth(r)}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
+          >
+            View Health
+          </button>
+          <button
+            onClick={() => openEditForm(r)}
+            className="rounded-lg px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/10"
+          >
+            Edit
+          </button>
+        </>
       ),
     },
   ];
@@ -277,6 +352,16 @@ export default function CustomerMasterPage() {
         >
           {banner.text}
         </div>
+      )}
+
+      {viewingCustomer && (
+        <CustomerHealthCard
+          customer={viewingCustomer}
+          health={health}
+          loading={healthLoading}
+          error={healthError}
+          onClose={closeHealthCard}
+        />
       )}
 
       <div className="mb-4">
