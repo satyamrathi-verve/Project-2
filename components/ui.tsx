@@ -216,13 +216,13 @@ export function KpiCard({
       ? "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
       : "bg-brand/10 text-brand dark:bg-brand/20 dark:text-blue-300";
   return (
-    <div className="themed rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700">
+    <div className="themed min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700">
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
         {icon && <span className={cx("flex h-9 w-9 flex-none items-center justify-center rounded-lg", chip)}>{icon}</span>}
       </div>
-      <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
-      {sub && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{sub}</p>}
+      <p className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
+      {sub && <p className="mt-1 truncate text-xs text-slate-400 dark:text-slate-500">{sub}</p>}
     </div>
   );
 }
