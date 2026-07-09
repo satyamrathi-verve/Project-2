@@ -32,6 +32,7 @@ export interface SortState {
                       customize-columns trigger). NOTE: the table wrapper clips
                       overflow, so render any dropdown/popup at page level with
                       fixed positioning, not inside the accessory itself.
+    rowClassName    — extra classes per row, e.g. to flag a problem row in red
 */
 export function DataTable<T extends { id: string }>({
   columns,
@@ -45,6 +46,7 @@ export function DataTable<T extends { id: string }>({
   selectable = false,
   selectedIds,
   onSelectionChange,
+  rowClassName,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -57,6 +59,7 @@ export function DataTable<T extends { id: string }>({
   selectable?: boolean;
   selectedIds?: ReadonlySet<string>;
   onSelectionChange?: (ids: string[]) => void;
+  rowClassName?: (row: T) => string;
 }) {
   const sel = selectedIds ?? new Set<string>();
   const allIds = rows.map((r) => r.id);
@@ -152,7 +155,9 @@ export function DataTable<T extends { id: string }>({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={`border-b border-slate-100 transition-colors last:border-0 hover:bg-brand/[0.03] dark:border-slate-800 dark:hover:bg-brand/[0.08] ${
                     onRowClick ? "cursor-pointer" : ""
-                  } ${selectable && sel.has(row.id) ? "bg-brand/[0.04] dark:bg-brand/[0.1]" : ""}`}
+                  } ${selectable && sel.has(row.id) ? "bg-brand/[0.04] dark:bg-brand/[0.1]" : ""} ${
+                    rowClassName ? rowClassName(row) : ""
+                  }`}
                 >
                   {showLeading && (
                     <td className="w-14 px-3 py-3.5" onClick={(e) => e.stopPropagation()}>
