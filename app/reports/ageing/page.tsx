@@ -1,94 +1,41 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { NotConfigured } from "@/components/NotConfigured";
 import { PageHeader } from "@/components/PageHeader";
 import { FormField, inputClass } from "@/components/FormField";
 import { DataTable, type Column } from "@/components/DataTable";
+import { Card } from "@/components/ui";
 import type { Customer, Invoice, ReceiptAllocation } from "@/lib/types";
+import {
+  BUCKET_LABELS,
+  EMPTY_BUCKETS,
+  buildAgeMatrix,
+  buildInvoiceRows,
+  computeRiskLevel,
+  formatDate,
+  formatINR,
+  generateInsights,
+  todayIso,
+  type BucketKey,
+  type InvoiceRow,
+  type RiskLevel,
+} from "./analytics";
+import { AgeMatrix } from "./AgeMatrix";
+import { RiskMatrix, type RiskRow } from "./RiskMatrix";
+import { RiskDistribution } from "./RiskDistribution";
+import { CollectionPriorityPanel } from "./CollectionPriorityPanel";
 
 /*
   Report – AR Ageing (read-only).
 
   Everything here is calculated on screen from data we already have — this
-  page never writes anything back to Supabase.
-
-  Ageing, in plain terms:
-  - "Outstanding" on an invoice = its total minus whatever's been received
-    against it so far (the sum of its rows in receipt_allocations).
-  - "Ageing days" = how many days past its due date the invoice is, as of the
-    "As On Date" you pick above. 0 or fewer days means it isn't due yet.
-  - Every invoice's outstanding amount falls into one bucket based on that
-    ageing: Not Due, 1–30, 31–60, 61–90, or Above 90 days.
-  - The customer-wise table is just those invoice buckets added up per customer.
+  page never writes anything back to Supabase. The core ageing math (what
+  "outstanding" and "ageing days" mean, how buckets are assigned) lives in
+  ./analytics.ts and is shared by the Age Matrix and Risk Matrix sections
+  below, so there's exactly one definition of "overdue" on this whole page.
 */
-
-type BucketKey = "not_due" | "d1_30" | "d31_60" | "d61_90" | "d90_plus";
-
-const BUCKET_LABELS: Record<BucketKey, string> = {
-  not_due: "Not Due",
-  d1_30: "1–30 Days",
-  d31_60: "31–60 Days",
-  d61_90: "61–90 Days",
-  d90_plus: "Above 90 Days",
-};
-
-const EMPTY_BUCKETS: Record<BucketKey, number> = {
-  not_due: 0,
-  d1_30: 0,
-  d31_60: 0,
-  d61_90: 0,
-  d90_plus: 0,
-};
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// How many whole days "as on date" is past the invoice's due date.
-// 0 (or negative) means the invoice isn't due yet.
-function ageingDaysFor(asOnDate: string, dueDate: string): number {
-  const ms = Date.parse(asOnDate) - Date.parse(dueDate);
-  return Math.round(ms / 86400000);
-}
-
-function bucketFor(ageingDays: number): BucketKey {
-  if (ageingDays <= 0) return "not_due";
-  if (ageingDays <= 30) return "d1_30";
-  if (ageingDays <= 60) return "d31_60";
-  if (ageingDays <= 90) return "d61_90";
-  return "d90_plus";
-}
-
-function formatINR(amount: number): string {
-  return amount.toLocaleString("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-interface InvoiceRow {
-  id: string;
-  customerId: string;
-  customerName: string;
-  invoiceNo: string;
-  invoiceDate: string;
-  dueDate: string;
-  invoiceAmount: number;
-  amountReceived: number;
-  outstanding: number;
-  ageingDays: number;
-  bucket: BucketKey;
-  status: "Paid" | "Current" | "Overdue";
-}
 
 interface CustomerAgeingRow {
   id: string;
@@ -137,13 +84,20 @@ export default function ARAgeingPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
+  // Filters (existing tables)
   const [asOnDate, setAsOnDate] = useState(todayIso());
   const [customerFilter, setCustomerFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "current" | "overdue">("all");
   const [bucketFilter, setBucketFilter] = useState<"all" | BucketKey>("all");
   const [minOutstanding, setMinOutstanding] = useState("0");
   const [includeZeroBalance, setIncludeZeroBalance] = useState(false);
+
+  // Risk Matrix's own controls (independent of the filters above)
+  const [riskThreshold, setRiskThreshold] = useState("");
+  const [riskFilter, setRiskFilter] = useState<"all" | RiskLevel>("all");
+
+  const invoiceSectionRef = useRef<HTMLDivElement>(null);
+  const riskSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isConfigured || !supabase) {
@@ -182,37 +136,13 @@ export default function ARAgeingPage() {
   }, []);
 
   // One row per invoice, with outstanding/ageing/bucket worked out for the chosen "as on" date.
-  const invoiceRows = useMemo<InvoiceRow[]>(() => {
-    const customerById = new Map(customers.map((c) => [c.id, c]));
-    const receivedByInvoice = new Map<string, number>();
-    for (const a of allocations) {
-      receivedByInvoice.set(a.invoice_id, (receivedByInvoice.get(a.invoice_id) ?? 0) + Number(a.amount));
-    }
+  const invoiceRows = useMemo<InvoiceRow[]>(
+    () => buildInvoiceRows(invoices, allocations, customers, asOnDate),
+    [invoices, allocations, customers, asOnDate]
+  );
 
-    return invoices.map((inv) => {
-      const received = receivedByInvoice.get(inv.id) ?? 0;
-      const outstanding = Math.round((Number(inv.total) - received) * 100) / 100;
-      const ageingDays = ageingDaysFor(asOnDate, inv.due_date);
-      const status: InvoiceRow["status"] = outstanding <= 0 ? "Paid" : ageingDays <= 0 ? "Current" : "Overdue";
-      return {
-        id: inv.id,
-        customerId: inv.customer_id,
-        customerName: customerById.get(inv.customer_id)?.name ?? "Unknown customer",
-        invoiceNo: inv.invoice_no,
-        invoiceDate: inv.invoice_date,
-        dueDate: inv.due_date,
-        invoiceAmount: Number(inv.total),
-        amountReceived: received,
-        outstanding,
-        ageingDays,
-        bucket: bucketFor(ageingDays),
-        status,
-      };
-    });
-  }, [invoices, allocations, customers, asOnDate]);
-
-  // Apply every filter here, once — both tables and the KPI cards read from
-  // this same filtered list, so the numbers always agree with each other.
+  // Apply every filter here, once — both existing tables and their KPI cards
+  // read from this same filtered list, so the numbers always agree with each other.
   const filteredInvoiceRows = useMemo(() => {
     const min = Number(minOutstanding) || 0;
     return invoiceRows.filter((row) => {
@@ -312,6 +242,39 @@ export default function ARAgeingPage() {
     ).length;
     return { buckets, totalOutstanding, totalOverdue, overdueCustomers };
   }, [customerRows]);
+
+  // --- New analysis sections: Age Matrix / Risk Matrix / Insights ---------
+  // These read from the full, unfiltered invoiceRows (only "As On Date"
+  // applies) rather than the five filters above, since a bucket/status/
+  // customer filter would defeat the point of a matrix that's meant to show
+  // every bucket and every customer at once.
+  const ageMatrixRows = useMemo(() => buildAgeMatrix(invoiceRows, customers), [invoiceRows, customers]);
+
+  const riskRows: RiskRow[] = useMemo(() => {
+    const threshold = riskThreshold.trim() === "" ? null : Number(riskThreshold);
+    return ageMatrixRows.map((row) => ({ ...row, risk: computeRiskLevel(row, threshold) }));
+  }, [ageMatrixRows, riskThreshold]);
+
+  const riskByCustomer = useMemo(() => new Map(riskRows.map((r) => [r.customerId, r.risk])), [riskRows]);
+
+  const insights = useMemo(
+    () => generateInsights(ageMatrixRows, invoiceRows, riskByCustomer),
+    [ageMatrixRows, invoiceRows, riskByCustomer]
+  );
+
+  // Age Matrix cell click: drill into the existing invoice-wise table below,
+  // filtered to that customer + bucket.
+  function handleMatrixCellClick(customerId: string, bucket: BucketKey) {
+    setCustomerFilter(customerId);
+    setBucketFilter(bucket);
+    invoiceSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // Risk summary card / priority panel click: filter the Risk Matrix table.
+  function handleRiskSelect(level: RiskLevel) {
+    setRiskFilter((current) => (current === level ? "all" : level));
+    riskSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   // Builds a CSV of the customer-wise summary (plus its totals row) and
   // downloads it — no extra libraries needed for this.
@@ -536,6 +499,41 @@ export default function ARAgeingPage() {
             <KpiCard label="Overdue Customers" value={String(kpis.overdueCustomers)} />
           </div>
 
+          {/* --- New: Interactive Age Matrix & Customer Risk Matrix -------- */}
+          <AgeMatrix rows={ageMatrixRows} onCellClick={handleMatrixCellClick} />
+
+          <div ref={riskSectionRef}>
+            <RiskMatrix
+              rows={riskRows}
+              filter={riskFilter}
+              onFilterChange={setRiskFilter}
+              threshold={riskThreshold}
+              onThresholdChange={setRiskThreshold}
+            />
+          </div>
+
+          <RiskDistribution rows={riskRows} />
+
+          {insights.length > 0 && (
+            <Card
+              title="Smart Collection Insights"
+              subtitle="Generated automatically from the data above using simple business rules — no AI service involved."
+              className="mb-6 print:hidden"
+            >
+              <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                {insights.map((text, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-brand">•</span>
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
+          <CollectionPriorityPanel rows={riskRows} onSelect={handleRiskSelect} />
+          {/* --- End new sections ------------------------------------------ */}
+
           {/* Customer-wise summary */}
           <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
             Customer-wise Ageing Summary
@@ -554,14 +552,16 @@ export default function ARAgeingPage() {
           />
 
           {/* Invoice-wise detail */}
-          <h3 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Invoice-wise Ageing Detail
-          </h3>
-          <DataTable
-            columns={invoiceColumns}
-            rows={filteredInvoiceRows}
-            empty="No invoices match these filters."
-          />
+          <div ref={invoiceSectionRef}>
+            <h3 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Invoice-wise Ageing Detail
+            </h3>
+            <DataTable
+              columns={invoiceColumns}
+              rows={filteredInvoiceRows}
+              empty="No invoices match these filters."
+            />
+          </div>
         </>
       )}
     </>
