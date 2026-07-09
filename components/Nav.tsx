@@ -25,7 +25,7 @@ const LINKS: { href: string; label: string; built: boolean }[] = [
   { href: "/reminders", label: "Auto Email Shoot", built: false },
   { href: "/reports/statement", label: "Customer Statement", built: true },
   { href: "/reports/ageing", label: "AR Ageing", built: false },
-  { href: "/cashflow", label: "Cashflow Projection", built: false },
+  { href: "/reports/cashflow", label: "Cashflow Projection", built: true },
   { href: "/dashboard", label: "Dashboard", built: false },
 ];
 
