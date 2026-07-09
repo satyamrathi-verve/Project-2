@@ -85,16 +85,22 @@ export interface PlaceholderDef {
   token: string;
   label: string;
   description: string;
-  category: "Customer" | "Invoice" | "Financial" | "Timing";
+  category: "Customer" | "Invoice" | "Financial" | "Timing" | "Table";
 }
 
-export const PLACEHOLDER_CATEGORIES = ["Customer", "Invoice", "Financial", "Timing"] as const;
+export const PLACEHOLDER_CATEGORIES = ["Customer", "Invoice", "Financial", "Timing", "Table"] as const;
 
 export const PLACEHOLDER_CATALOG: PlaceholderDef[] = [
   { token: "{customer}", label: "Customer name", description: "The customer's registered name.", category: "Customer" },
   { token: "{invoice_no}", label: "Invoice number", description: "The invoice being chased.", category: "Invoice" },
   { token: "{amount}", label: "Outstanding amount", description: "What's still owed on the invoice.", category: "Financial" },
   { token: "{days_overdue}", label: "Days overdue", description: "How many days past the due date.", category: "Timing" },
+  {
+    token: "{invoice_table}",
+    label: "Invoice table",
+    description: "A table of outstanding invoices (from AR Ageing) with the total below it.",
+    category: "Table",
+  },
 ];
 
 /** Sample values used only to render the live preview — never sent anywhere. */
@@ -145,17 +151,40 @@ export function insertAtCursor(value: string, cursor: number, insertText: string
   return { next, selStart: cursor + insertText.length };
 }
 
-/** Renders the plain-text body (with its bold, italic, and bullet conventions) as safe HTML for this page's own preview only. */
-export function renderFormattedHtml(text: string): string {
-  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+const INVOICE_TABLE_TOKEN = "{invoice_table}";
+
+/**
+ * Renders the plain-text body (with its bold, italic, and bullet conventions)
+ * as safe HTML for this page's own preview only. A line that's *only*
+ * `{invoice_table}` is swapped for `invoiceTableHtml` (built from AR Ageing
+ * data) instead of being wrapped in a paragraph — same placeholder-insertion
+ * convention as {customer}/{amount}/etc, just resolving to a table instead of
+ * a word. If nothing is selected yet, a plain hint is shown in its place.
+ */
+export function renderFormattedHtml(text: string, invoiceTableHtml?: string): string {
   const inline = (s: string) =>
     s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/_(.+?)_/g, "<em>$1</em>");
 
-  const lines = escape(text).split("\n");
+  const lines = escapeHtml(text).split("\n");
   const html: string[] = [];
   let inList = false;
 
   for (const line of lines) {
+    if (line.trim() === INVOICE_TABLE_TOKEN) {
+      if (inList) {
+        html.push("</ul>");
+        inList = false;
+      }
+      html.push(
+        invoiceTableHtml ??
+          `<p style="color:#94a3b8;">(invoice table — pick a customer in Reminder Scope to preview)</p>`
+      );
+      continue;
+    }
     const bulletMatch = line.match(/^\s*-\s+(.*)$/);
     if (bulletMatch) {
       if (!inList) {

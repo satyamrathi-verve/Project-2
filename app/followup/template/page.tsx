@@ -6,8 +6,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { Card } from "@/components/ui";
-import { fillReminderTemplate } from "@/lib/collections";
-import type { ReminderTemplate } from "@/lib/types";
+import type { SearchableSelectOption } from "@/components/SearchableSelect";
+import { fillReminderTemplate, formatCurrency } from "@/lib/collections";
+import { buildInvoiceRows, todayIso } from "@/app/reports/ageing/analytics";
+import type { Customer, Invoice, InvoiceItem, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
 import {
   CANONICAL_NAMES,
   DEFAULT_ATTACHMENT_OPTIONS,
@@ -20,21 +22,28 @@ import {
   wrapSelection,
   type ReminderTypeId,
 } from "./reminderTemplateConfig";
+import {
+  buildInvoiceTableHtml,
+  computeCustomerWiseFillValues,
+  computeInvoiceWiseFillValues,
+  descriptionByInvoiceId,
+  toInvoiceTableRows,
+  type ReminderScope,
+} from "./reminderScope";
 import { ReminderTypeTabs, OtherTemplatesSelect } from "./ReminderTypeTabs";
+import { ReminderScopePanel } from "./ReminderScopePanel";
 import { PlaceholderPanel } from "./PlaceholderPanel";
 import { RichBodyEditor } from "./RichBodyEditor";
 import { AttachmentsSection, SignatureSection } from "./AttachmentsAndSignature";
 import { LivePreviewPanel } from "./LivePreviewPanel";
 import { useLocalStorageState } from "./useLocalStorageState";
 
-function fillForPreview(text: string) {
-  return fillReminderTemplate(text, {
-    customer: PREVIEW_SAMPLE.customer,
-    amount: Number(PREVIEW_SAMPLE.amount.replace(/,/g, "")),
-    daysOverdue: Number(PREVIEW_SAMPLE.daysOverdue),
-    invoiceNo: PREVIEW_SAMPLE.invoiceNo,
-  });
-}
+const SAMPLE_FILL_VALUES = {
+  customer: PREVIEW_SAMPLE.customer,
+  amount: Number(PREVIEW_SAMPLE.amount.replace(/,/g, "")),
+  daysOverdue: Number(PREVIEW_SAMPLE.daysOverdue),
+  invoiceNo: PREVIEW_SAMPLE.invoiceNo,
+};
 
 export default function ReminderTemplatePage() {
   const [templates, setTemplates] = useState<ReminderTemplate[]>([]);
@@ -48,6 +57,16 @@ export default function ReminderTemplatePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFocused, setLastFocused] = useState<"subject" | "body">("body");
+
+  // Reminder Scope — preview-only inputs. These never change what gets saved
+  // to reminder_templates; they just choose which real data fills the preview.
+  const [scope, setScope] = useState<ReminderScope>("invoice_wise");
+  const [previewCustomerId, setPreviewCustomerId] = useState<string | null>(null);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allocations, setAllocations] = useState<ReceiptAllocation[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -66,29 +85,43 @@ export default function ReminderTemplatePage() {
       setLoading(false);
       return;
     }
-    supabase
-      .from("reminder_templates")
-      .select("*")
-      .order("name")
-      .then(({ data, error }) => {
-        if (error) {
-          setError(error.message);
-          setLoading(false);
-          return;
-        }
-        const rows = data ?? [];
-        setTemplates(rows);
-        const canonicalRow = REMINDER_TYPES.find((t) => rows.some((r) => r.name === t.templateName));
-        const customRow = rows.find((r) => !CANONICAL_NAMES.has(r.name));
-        if (canonicalRow) {
-          loadReminderType(canonicalRow.id, rows);
-        } else if (customRow) {
-          loadCustomTemplate(customRow.id, rows);
-        } else {
-          loadReminderType(REMINDER_TYPES[0].id, rows);
-        }
+    // Reminder Scope reuses the AR Ageing report's own source tables (customers,
+    // invoices, receipt_allocations) so "outstanding" and "days overdue" are
+    // computed identically to that report — see buildInvoiceRows below.
+    // invoice_items is the one extra fetch, only for the table's "Description
+    // of Service" column, which AR Ageing itself doesn't need.
+    Promise.all([
+      supabase.from("reminder_templates").select("*").order("name"),
+      supabase.from("customers").select("*"),
+      supabase.from("invoices").select("*"),
+      supabase.from("receipt_allocations").select("*"),
+      supabase.from("invoice_items").select("*"),
+    ]).then(([templatesRes, customersRes, invoicesRes, allocationsRes, itemsRes]) => {
+      const firstError =
+        templatesRes.error ?? customersRes.error ?? invoicesRes.error ?? allocationsRes.error ?? itemsRes.error;
+      if (firstError) {
+        setError(firstError.message);
         setLoading(false);
-      });
+        return;
+      }
+      setCustomers(customersRes.data ?? []);
+      setInvoices(invoicesRes.data ?? []);
+      setAllocations(allocationsRes.data ?? []);
+      setInvoiceItems(itemsRes.data ?? []);
+
+      const rows = templatesRes.data ?? [];
+      setTemplates(rows);
+      const canonicalRow = REMINDER_TYPES.find((t) => rows.some((r) => r.name === t.templateName));
+      const customRow = rows.find((r) => !CANONICAL_NAMES.has(r.name));
+      if (canonicalRow) {
+        loadReminderType(canonicalRow.id, rows);
+      } else if (customRow) {
+        loadCustomTemplate(customRow.id, rows);
+      } else {
+        loadReminderType(REMINDER_TYPES[0].id, rows);
+      }
+      setLoading(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -125,6 +158,72 @@ export default function ReminderTemplatePage() {
 
   const customTemplates = useMemo(() => templates.filter((t) => !CANONICAL_NAMES.has(t.name)), [templates]);
   const savedNames = useMemo(() => new Set(templates.map((t) => t.name)), [templates]);
+
+  // ---- Reminder Scope: real customer/invoice data for the preview, reusing
+  // the AR Ageing report's own buildInvoiceRows so "outstanding" and "days
+  // overdue" always match that report exactly. ----
+  const invoiceRows = useMemo(
+    () => buildInvoiceRows(invoices, allocations, customers, todayIso()),
+    [invoices, allocations, customers]
+  );
+  const descriptions = useMemo(() => descriptionByInvoiceId(invoiceItems), [invoiceItems]);
+
+  const customerOptions: SearchableSelectOption[] = useMemo(
+    () =>
+      [...customers]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((c) => ({ value: c.id, label: c.name, sublabel: c.code })),
+    [customers]
+  );
+
+  const invoiceOptions: SearchableSelectOption[] = useMemo(() => {
+    if (!previewCustomerId) return [];
+    return invoiceRows
+      .filter((r) => r.customerId === previewCustomerId && r.outstanding > 0)
+      .sort((a, b) => b.ageingDays - a.ageingDays)
+      .map((r) => ({
+        value: r.id,
+        label: r.invoiceNo,
+        sublabel: `${formatCurrency(r.outstanding)} · ${r.ageingDays > 0 ? `${r.ageingDays}d overdue` : "not due"}`,
+      }));
+  }, [invoiceRows, previewCustomerId]);
+
+  function handleScopeChange(next: ReminderScope) {
+    setScope(next);
+    setPreviewInvoiceId(null);
+  }
+
+  function handleCustomerChange(id: string) {
+    setPreviewCustomerId(id);
+    setPreviewInvoiceId(null);
+  }
+
+  const scopeFillValues = useMemo(() => {
+    if (scope === "invoice_wise") {
+      const row = invoiceRows.find((r) => r.id === previewInvoiceId);
+      return computeInvoiceWiseFillValues(row);
+    }
+    if (!previewCustomerId) return null;
+    const customer = customers.find((c) => c.id === previewCustomerId);
+    if (!customer) return null;
+    const customerRows = invoiceRows.filter((r) => r.customerId === previewCustomerId);
+    return computeCustomerWiseFillValues(customer.name, customerRows);
+  }, [scope, previewInvoiceId, previewCustomerId, invoiceRows, customers]);
+
+  const invoiceTableHtml = useMemo(() => {
+    if (scope === "invoice_wise") {
+      const row = invoiceRows.find((r) => r.id === previewInvoiceId);
+      if (!row) return undefined;
+      return buildInvoiceTableHtml(toInvoiceTableRows([row], descriptions));
+    }
+    if (!previewCustomerId) return undefined;
+    const customerRows = invoiceRows.filter((r) => r.customerId === previewCustomerId && r.outstanding > 0);
+    return buildInvoiceTableHtml(toInvoiceTableRows(customerRows, descriptions));
+  }, [scope, previewInvoiceId, previewCustomerId, invoiceRows, descriptions]);
+
+  function fillForPreview(text: string) {
+    return fillReminderTemplate(text, scopeFillValues ?? SAMPLE_FILL_VALUES);
+  }
 
   function insertToken(token: string) {
     if (lastFocused === "subject" && subjectRef.current) {
@@ -310,15 +409,31 @@ export default function ReminderTemplatePage() {
           </div>
 
           {/* Preview column */}
-          <LivePreviewPanel
-            reminderType={activeConfig ?? REMINDER_TYPES[0]}
-            subject={fillForPreview(subject)}
-            body={fillForPreview(body)}
-            attachmentIds={attachmentIds}
-            attachmentOptions={DEFAULT_ATTACHMENT_OPTIONS}
-            signature={signature}
-            missingTokens={missingTokens}
-          />
+          <div className="sticky top-6 space-y-4">
+            <Card title="Reminder scope" subtitle="Choose real data to preview — this doesn't change what gets saved.">
+              <ReminderScopePanel
+                scope={scope}
+                onScopeChange={handleScopeChange}
+                customerOptions={customerOptions}
+                selectedCustomerId={previewCustomerId}
+                onCustomerChange={handleCustomerChange}
+                invoiceOptions={invoiceOptions}
+                selectedInvoiceId={previewInvoiceId}
+                onInvoiceChange={setPreviewInvoiceId}
+              />
+            </Card>
+
+            <LivePreviewPanel
+              reminderType={activeConfig ?? REMINDER_TYPES[0]}
+              subject={fillForPreview(subject)}
+              body={fillForPreview(body)}
+              invoiceTableHtml={invoiceTableHtml}
+              attachmentIds={attachmentIds}
+              attachmentOptions={DEFAULT_ATTACHMENT_OPTIONS}
+              signature={signature}
+              missingTokens={missingTokens}
+            />
+          </div>
         </div>
       )}
     </>
