@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { NotConfigured } from "@/components/NotConfigured";
@@ -69,8 +68,6 @@ async function nextInvoiceNo(): Promise<string> {
 }
 
 export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
-  const router = useRouter();
-
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -266,7 +263,11 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
       return;
     }
 
-    router.push(`/invoices/${id}`);
+    // The View page is a server component the user has very likely already
+    // visited (that's how they got to this Edit form) — router.push() can
+    // serve Next's client-side router cache for that route instead of the
+    // fresh data we just saved. A full browser navigation always refetches.
+    window.location.assign(`/invoices/${id}`);
   }
 
   if (!isConfigured || !supabase) {
