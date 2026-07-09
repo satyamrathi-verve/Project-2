@@ -15,6 +15,19 @@ import type { BadgeTone } from "@/components/Badge";
 
 export type ReminderTypeId = "before_due" | "first_reminder" | "second_reminder" | "final_reminder";
 
+// Invoice Wise (the original, default behaviour) chases one invoice at a
+// time with {invoice_no}/{amount}/{days_overdue}. Customer Wise rolls every
+// outstanding invoice for that customer into one email built around the
+// {invoice_table} placeholder instead — see customerWiseInvoiceTable.ts.
+export type ReminderScope = "invoice_wise" | "customer_wise";
+
+export interface ScopedTemplateDefaults {
+  templateName: string;
+  requiredTokens: string[];
+  defaultSubject: string;
+  defaultBody: string;
+}
+
 export interface ReminderTypeConfig {
   id: ReminderTypeId;
   templateName: string;
@@ -24,7 +37,13 @@ export interface ReminderTypeConfig {
   requiredTokens: string[];
   defaultSubject: string;
   defaultBody: string;
+  /** The same reminder stage, rolled up across every outstanding invoice for one customer. */
+  customerWise: ScopedTemplateDefaults;
 }
+
+const CUSTOMER_WISE_SUBJECT = "Outstanding Invoices – Payment Follow Up";
+const CUSTOMER_WISE_INTRO =
+  "Our records indicate the following outstanding invoices are pending payment. Please find the details below.";
 
 export const REMINDER_TYPES: ReminderTypeConfig[] = [
   {
@@ -37,6 +56,12 @@ export const REMINDER_TYPES: ReminderTypeConfig[] = [
     defaultSubject: "Upcoming payment: invoice {invoice_no}",
     defaultBody:
       "Dear {customer},\n\nThis is a friendly reminder that invoice {invoice_no} for {amount} will be due shortly. No action is needed if payment is already scheduled.\n\nThank you,",
+    customerWise: {
+      templateName: "Before Due (Customer Wise)",
+      requiredTokens: ["{customer}", "{invoice_table}"],
+      defaultSubject: CUSTOMER_WISE_SUBJECT,
+      defaultBody: `Dear {customer},\n\n${CUSTOMER_WISE_INTRO}\n\n{invoice_table}\n\nNo action is needed if payment is already scheduled.\n\nThank you,`,
+    },
   },
   {
     id: "first_reminder",
@@ -48,6 +73,12 @@ export const REMINDER_TYPES: ReminderTypeConfig[] = [
     defaultSubject: "Payment reminder: invoice {invoice_no}",
     defaultBody:
       "Dear {customer},\n\nOur records show invoice {invoice_no} for {amount} is now {days_overdue} days overdue. We would appreciate payment at your earliest convenience.\n\nWarm regards,",
+    customerWise: {
+      templateName: "First Reminder (Customer Wise)",
+      requiredTokens: ["{customer}", "{invoice_table}"],
+      defaultSubject: CUSTOMER_WISE_SUBJECT,
+      defaultBody: `Dear {customer},\n\n${CUSTOMER_WISE_INTRO}\n\n{invoice_table}\n\nWe would appreciate payment at your earliest convenience.\n\nWarm regards,`,
+    },
   },
   {
     id: "second_reminder",
@@ -59,6 +90,12 @@ export const REMINDER_TYPES: ReminderTypeConfig[] = [
     defaultSubject: "Second notice: invoice {invoice_no} still overdue",
     defaultBody:
       "Dear {customer},\n\nWe previously wrote to you about invoice {invoice_no} for {amount}, which is now {days_overdue} days overdue. Please arrange payment as soon as possible to avoid further action.\n\nRegards,",
+    customerWise: {
+      templateName: "Second Reminder (Customer Wise)",
+      requiredTokens: ["{customer}", "{invoice_table}"],
+      defaultSubject: CUSTOMER_WISE_SUBJECT,
+      defaultBody: `Dear {customer},\n\n${CUSTOMER_WISE_INTRO}\n\n{invoice_table}\n\nPlease arrange payment as soon as possible to avoid further action.\n\nRegards,`,
+    },
   },
   {
     id: "final_reminder",
@@ -70,6 +107,12 @@ export const REMINDER_TYPES: ReminderTypeConfig[] = [
     defaultSubject: "Final notice: invoice {invoice_no} — immediate payment required",
     defaultBody:
       "Dear {customer},\n\nDespite previous reminders, invoice {invoice_no} for {amount} remains unpaid and is now {days_overdue} days overdue. Please settle this invoice immediately to avoid escalation.\n\nRegards,",
+    customerWise: {
+      templateName: "Final Reminder (Customer Wise)",
+      requiredTokens: ["{customer}", "{invoice_table}"],
+      defaultSubject: CUSTOMER_WISE_SUBJECT,
+      defaultBody: `Dear {customer},\n\n${CUSTOMER_WISE_INTRO}\n\n{invoice_table}\n\nPlease settle these invoices immediately to avoid escalation.\n\nRegards,`,
+    },
   },
 ];
 
@@ -77,7 +120,21 @@ export function reminderTypeById(id: ReminderTypeId): ReminderTypeConfig {
   return REMINDER_TYPES.find((t) => t.id === id) ?? REMINDER_TYPES[0];
 }
 
-export const CANONICAL_NAMES = new Set(REMINDER_TYPES.map((t) => t.templateName));
+/** Picks the Invoice Wise or Customer Wise field set for a reminder type. */
+export function scopedDefaults(config: ReminderTypeConfig, scope: ReminderScope): ScopedTemplateDefaults {
+  return scope === "customer_wise"
+    ? config.customerWise
+    : {
+        templateName: config.templateName,
+        requiredTokens: config.requiredTokens,
+        defaultSubject: config.defaultSubject,
+        defaultBody: config.defaultBody,
+      };
+}
+
+export const CANONICAL_NAMES = new Set(
+  REMINDER_TYPES.flatMap((t) => [t.templateName, t.customerWise.templateName])
+);
 
 // ---- placeholders -----------------------------------------------------------
 
@@ -85,21 +142,22 @@ export interface PlaceholderDef {
   token: string;
   label: string;
   description: string;
-  category: "Customer" | "Invoice" | "Financial" | "Timing" | "Table";
+  category: "Customer" | "Invoice" | "Financial" | "Timing";
 }
 
-export const PLACEHOLDER_CATEGORIES = ["Customer", "Invoice", "Financial", "Timing", "Table"] as const;
+export const PLACEHOLDER_CATEGORIES = ["Customer", "Invoice", "Financial", "Timing"] as const;
 
 export const PLACEHOLDER_CATALOG: PlaceholderDef[] = [
   { token: "{customer}", label: "Customer name", description: "The customer's registered name.", category: "Customer" },
-  { token: "{invoice_no}", label: "Invoice number", description: "The invoice being chased.", category: "Invoice" },
-  { token: "{amount}", label: "Outstanding amount", description: "What's still owed on the invoice.", category: "Financial" },
-  { token: "{days_overdue}", label: "Days overdue", description: "How many days past the due date.", category: "Timing" },
+  { token: "{invoice_no}", label: "Invoice number", description: "The invoice being chased. Invoice Wise only.", category: "Invoice" },
+  { token: "{amount}", label: "Outstanding amount", description: "What's still owed on the invoice. Invoice Wise only.", category: "Financial" },
+  { token: "{days_overdue}", label: "Days overdue", description: "How many days past the due date. Invoice Wise only.", category: "Timing" },
   {
     token: "{invoice_table}",
     label: "Invoice table",
-    description: "A table of outstanding invoices (from AR Ageing) with the total below it.",
-    category: "Table",
+    description:
+      "Auto-inserted table of every outstanding invoice for the customer, with the total outstanding amount and invoice count shown below it. Customer Wise only.",
+    category: "Invoice",
   },
 ];
 
@@ -151,40 +209,17 @@ export function insertAtCursor(value: string, cursor: number, insertText: string
   return { next, selStart: cursor + insertText.length };
 }
 
-export function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-const INVOICE_TABLE_TOKEN = "{invoice_table}";
-
-/**
- * Renders the plain-text body (with its bold, italic, and bullet conventions)
- * as safe HTML for this page's own preview only. A line that's *only*
- * `{invoice_table}` is swapped for `invoiceTableHtml` (built from AR Ageing
- * data) instead of being wrapped in a paragraph — same placeholder-insertion
- * convention as {customer}/{amount}/etc, just resolving to a table instead of
- * a word. If nothing is selected yet, a plain hint is shown in its place.
- */
-export function renderFormattedHtml(text: string, invoiceTableHtml?: string): string {
+/** Renders the plain-text body (with its bold, italic, and bullet conventions) as safe HTML for this page's own preview only. */
+export function renderFormattedHtml(text: string): string {
+  const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const inline = (s: string) =>
     s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/_(.+?)_/g, "<em>$1</em>");
 
-  const lines = escapeHtml(text).split("\n");
+  const lines = escape(text).split("\n");
   const html: string[] = [];
   let inList = false;
 
   for (const line of lines) {
-    if (line.trim() === INVOICE_TABLE_TOKEN) {
-      if (inList) {
-        html.push("</ul>");
-        inList = false;
-      }
-      html.push(
-        invoiceTableHtml ??
-          `<p style="color:#94a3b8;">(invoice table — pick a customer in Reminder Scope to preview)</p>`
-      );
-      continue;
-    }
     const bulletMatch = line.match(/^\s*-\s+(.*)$/);
     if (bulletMatch) {
       if (!inList) {

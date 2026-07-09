@@ -153,6 +153,13 @@ export function IconSearch({ className }: IconProps) {
     </svg>
   );
 }
+export function IconFilter({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3Z" />
+    </svg>
+  );
+}
 export function IconPlus({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} strokeLinecap="round" strokeLinejoin="round">
@@ -194,6 +201,16 @@ export function IconChevronDown({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={className} strokeLinecap="round" strokeLinejoin="round">
       <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+export function IconUsers({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3" />
+      <path d="M2 21v-1c0-2.76 2.69-5 6-5s6 2.24 6 5v1" />
+      <path d="M15 15c2.76 0 5 1.79 5 4v2" />
+      <circle cx="8" cy="7" r="4" />
     </svg>
   );
 }

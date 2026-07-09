@@ -6,10 +6,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { Card } from "@/components/ui";
-import type { SearchableSelectOption } from "@/components/SearchableSelect";
-import { fillReminderTemplate, formatCurrency } from "@/lib/collections";
+import { fillReminderTemplate } from "@/lib/collections";
+import type { Customer, Invoice, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
 import { buildInvoiceRows, todayIso } from "@/app/reports/ageing/analytics";
-import type { Customer, Invoice, InvoiceItem, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
+import { buildCustomerWiseRows, renderInvoiceTableHtml } from "./customerWiseInvoiceTable";
 import {
   CANONICAL_NAMES,
   DEFAULT_ATTACHMENT_OPTIONS,
@@ -19,35 +19,31 @@ import {
   insertAtCursor,
   missingRequiredTokens,
   reminderTypeById,
+  scopedDefaults,
   wrapSelection,
+  type ReminderScope,
   type ReminderTypeId,
 } from "./reminderTemplateConfig";
-import {
-  buildInvoiceTableHtml,
-  computeCustomerWiseFillValues,
-  computeInvoiceWiseFillValues,
-  descriptionByInvoiceId,
-  toInvoiceTableRows,
-  type ReminderScope,
-} from "./reminderScope";
-import { ReminderTypeTabs, OtherTemplatesSelect } from "./ReminderTypeTabs";
-import { ReminderScopePanel } from "./ReminderScopePanel";
+import { ReminderTypeTabs, OtherTemplatesSelect, ScopeToggle } from "./ReminderTypeTabs";
 import { PlaceholderPanel } from "./PlaceholderPanel";
 import { RichBodyEditor } from "./RichBodyEditor";
 import { AttachmentsSection, SignatureSection } from "./AttachmentsAndSignature";
 import { LivePreviewPanel } from "./LivePreviewPanel";
 import { useLocalStorageState } from "./useLocalStorageState";
 
-const SAMPLE_FILL_VALUES = {
-  customer: PREVIEW_SAMPLE.customer,
-  amount: Number(PREVIEW_SAMPLE.amount.replace(/,/g, "")),
-  daysOverdue: Number(PREVIEW_SAMPLE.daysOverdue),
-  invoiceNo: PREVIEW_SAMPLE.invoiceNo,
-};
+function fillForPreview(text: string) {
+  return fillReminderTemplate(text, {
+    customer: PREVIEW_SAMPLE.customer,
+    amount: Number(PREVIEW_SAMPLE.amount.replace(/,/g, "")),
+    daysOverdue: Number(PREVIEW_SAMPLE.daysOverdue),
+    invoiceNo: PREVIEW_SAMPLE.invoiceNo,
+  });
+}
 
 export default function ReminderTemplatePage() {
   const [templates, setTemplates] = useState<ReminderTemplate[]>([]);
   const [reminderTypeId, setReminderTypeId] = useState<ReminderTypeId | null>(null);
+  const [scope, setScope] = useState<ReminderScope>("invoice_wise");
   const [customTemplateId, setCustomTemplateId] = useState<string | null>(null);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
@@ -57,16 +53,6 @@ export default function ReminderTemplatePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFocused, setLastFocused] = useState<"subject" | "body">("body");
-
-  // Reminder Scope — preview-only inputs. These never change what gets saved
-  // to reminder_templates; they just choose which real data fills the preview.
-  const [scope, setScope] = useState<ReminderScope>("invoice_wise");
-  const [previewCustomerId, setPreviewCustomerId] = useState<string | null>(null);
-  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [allocations, setAllocations] = useState<ReceiptAllocation[]>([]);
-  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
 
   const subjectRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -80,61 +66,132 @@ export default function ReminderTemplatePage() {
     "Warm regards,\nAccounts Receivable Team"
   );
 
+  // Customer Wise preview data — the {invoice_table} block for the same
+  // PREVIEW_SAMPLE.customer used elsewhere on this page, built by reusing the
+  // AR Ageing module's own buildInvoiceRows() (app/reports/ageing/analytics.ts)
+  // over the same customers/invoices/receipt_allocations tables it reads,
+  // plus each invoice's item description. Read-only, nothing is written back.
+  const [invoiceTableHtml, setInvoiceTableHtml] = useState<string | null>(null);
+  const [invoiceTableError, setInvoiceTableError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isConfigured || !supabase) return;
+    let cancelled = false;
+
+    async function loadInvoiceTable() {
+      const [customersRes, invoicesRes, allocationsRes] = await Promise.all([
+        supabase!.from("customers").select("*"),
+        supabase!.from("invoices").select("*"),
+        supabase!.from("receipt_allocations").select("*"),
+      ]);
+      if (cancelled) return;
+      const firstError = customersRes.error ?? invoicesRes.error ?? allocationsRes.error;
+      if (firstError) {
+        setInvoiceTableError(firstError.message);
+        return;
+      }
+
+      const customers = (customersRes.data ?? []) as Customer[];
+      const invoices = (invoicesRes.data ?? []) as Invoice[];
+      const allocations = (allocationsRes.data ?? []) as ReceiptAllocation[];
+      const allRows = buildInvoiceRows(invoices, allocations, customers, todayIso());
+
+      const sampleCustomer = customers.find((c) => c.name.toLowerCase() === PREVIEW_SAMPLE.customer.toLowerCase());
+      let customerRows = sampleCustomer ? allRows.filter((r) => r.customerId === sampleCustomer.id) : [];
+
+      // Fall back to whichever customer actually has outstanding invoices, so
+      // the preview isn't empty if the sample name isn't in this Supabase project.
+      if (customerRows.every((r) => r.outstanding <= 0)) {
+        const outstandingCountByCustomer = new Map<string, number>();
+        allRows.forEach((r) => {
+          if (r.outstanding > 0) {
+            outstandingCountByCustomer.set(r.customerId, (outstandingCountByCustomer.get(r.customerId) ?? 0) + 1);
+          }
+        });
+        const ranked = [...outstandingCountByCustomer.entries()].sort((a, b) => b[1] - a[1]);
+        if (ranked.length > 0) {
+          customerRows = allRows.filter((r) => r.customerId === ranked[0][0]);
+        }
+      }
+
+      const invoiceIds = customerRows.map((r) => r.id);
+      const itemsRes = invoiceIds.length
+        ? await supabase!.from("invoice_items").select("invoice_id, description").in("invoice_id", invoiceIds)
+        : { data: [] as { invoice_id: string; description: string }[], error: null };
+      if (cancelled) return;
+      if (itemsRes.error) {
+        setInvoiceTableError(itemsRes.error.message);
+        return;
+      }
+
+      const descriptionByInvoiceId: Record<string, string> = {};
+      (itemsRes.data ?? []).forEach((item) => {
+        descriptionByInvoiceId[item.invoice_id] = descriptionByInvoiceId[item.invoice_id]
+          ? `${descriptionByInvoiceId[item.invoice_id]}; ${item.description}`
+          : item.description;
+      });
+
+      setInvoiceTableHtml(renderInvoiceTableHtml(buildCustomerWiseRows(customerRows, descriptionByInvoiceId)));
+    }
+
+    loadInvoiceTable();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!isConfigured || !supabase) {
       setLoading(false);
       return;
     }
-    // Reminder Scope reuses the AR Ageing report's own source tables (customers,
-    // invoices, receipt_allocations) so "outstanding" and "days overdue" are
-    // computed identically to that report — see buildInvoiceRows below.
-    // invoice_items is the one extra fetch, only for the table's "Description
-    // of Service" column, which AR Ageing itself doesn't need.
-    Promise.all([
-      supabase.from("reminder_templates").select("*").order("name"),
-      supabase.from("customers").select("*"),
-      supabase.from("invoices").select("*"),
-      supabase.from("receipt_allocations").select("*"),
-      supabase.from("invoice_items").select("*"),
-    ]).then(([templatesRes, customersRes, invoicesRes, allocationsRes, itemsRes]) => {
-      const firstError =
-        templatesRes.error ?? customersRes.error ?? invoicesRes.error ?? allocationsRes.error ?? itemsRes.error;
-      if (firstError) {
-        setError(firstError.message);
+    supabase
+      .from("reminder_templates")
+      .select("*")
+      .order("name")
+      .then(({ data, error }) => {
+        if (error) {
+          setError(error.message);
+          setLoading(false);
+          return;
+        }
+        const rows = data ?? [];
+        setTemplates(rows);
+        const canonicalRow = REMINDER_TYPES.find((t) => rows.some((r) => r.name === t.templateName));
+        const customRow = rows.find((r) => !CANONICAL_NAMES.has(r.name));
+        if (canonicalRow) {
+          loadReminderType(canonicalRow.id, rows);
+        } else if (customRow) {
+          loadCustomTemplate(customRow.id, rows);
+        } else {
+          loadReminderType(REMINDER_TYPES[0].id, rows);
+        }
         setLoading(false);
-        return;
-      }
-      setCustomers(customersRes.data ?? []);
-      setInvoices(invoicesRes.data ?? []);
-      setAllocations(allocationsRes.data ?? []);
-      setInvoiceItems(itemsRes.data ?? []);
-
-      const rows = templatesRes.data ?? [];
-      setTemplates(rows);
-      const canonicalRow = REMINDER_TYPES.find((t) => rows.some((r) => r.name === t.templateName));
-      const customRow = rows.find((r) => !CANONICAL_NAMES.has(r.name));
-      if (canonicalRow) {
-        loadReminderType(canonicalRow.id, rows);
-      } else if (customRow) {
-        loadCustomTemplate(customRow.id, rows);
-      } else {
-        loadReminderType(REMINDER_TYPES[0].id, rows);
-      }
-      setLoading(false);
-    });
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function loadReminderType(id: ReminderTypeId, rows: ReminderTemplate[]) {
+  function loadReminderType(id: ReminderTypeId, rows: ReminderTemplate[], scopeOverride?: ReminderScope) {
     const config = reminderTypeById(id);
-    const existing = rows.find((r) => r.name === config.templateName);
+    const defaults = scopedDefaults(config, scopeOverride ?? scope);
+    const existing = rows.find((r) => r.name === defaults.templateName);
     setReminderTypeId(id);
     setCustomTemplateId(null);
     setSelectedRowId(existing?.id ?? null);
-    setSubject(existing?.subject ?? config.defaultSubject);
-    setBody(existing?.body ?? config.defaultBody);
+    setSubject(existing?.subject ?? defaults.defaultSubject);
+    setBody(existing?.body ?? defaults.defaultBody);
     setSaved(false);
     setError(null);
+  }
+
+  // Switching Invoice Wise <-> Customer Wise re-loads the active stage's
+  // subject/body for the new scope immediately (rather than waiting for a
+  // render with the old `scope` closure).
+  function handleScopeChange(next: ReminderScope) {
+    setScope(next);
+    if (reminderTypeId) {
+      loadReminderType(reminderTypeId, templates, next);
+    }
   }
 
   function loadCustomTemplate(id: string, rows: ReminderTemplate[]) {
@@ -150,7 +207,8 @@ export default function ReminderTemplatePage() {
   }
 
   const activeConfig = reminderTypeId ? reminderTypeById(reminderTypeId) : null;
-  const requiredTokens = activeConfig ? activeConfig.requiredTokens : ["{customer}"];
+  const activeDefaults = activeConfig ? scopedDefaults(activeConfig, scope) : null;
+  const requiredTokens = activeDefaults ? activeDefaults.requiredTokens : ["{customer}"];
   const missingTokens = useMemo(
     () => missingRequiredTokens(requiredTokens, subject, body),
     [requiredTokens, subject, body]
@@ -158,72 +216,6 @@ export default function ReminderTemplatePage() {
 
   const customTemplates = useMemo(() => templates.filter((t) => !CANONICAL_NAMES.has(t.name)), [templates]);
   const savedNames = useMemo(() => new Set(templates.map((t) => t.name)), [templates]);
-
-  // ---- Reminder Scope: real customer/invoice data for the preview, reusing
-  // the AR Ageing report's own buildInvoiceRows so "outstanding" and "days
-  // overdue" always match that report exactly. ----
-  const invoiceRows = useMemo(
-    () => buildInvoiceRows(invoices, allocations, customers, todayIso()),
-    [invoices, allocations, customers]
-  );
-  const descriptions = useMemo(() => descriptionByInvoiceId(invoiceItems), [invoiceItems]);
-
-  const customerOptions: SearchableSelectOption[] = useMemo(
-    () =>
-      [...customers]
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .map((c) => ({ value: c.id, label: c.name, sublabel: c.code })),
-    [customers]
-  );
-
-  const invoiceOptions: SearchableSelectOption[] = useMemo(() => {
-    if (!previewCustomerId) return [];
-    return invoiceRows
-      .filter((r) => r.customerId === previewCustomerId && r.outstanding > 0)
-      .sort((a, b) => b.ageingDays - a.ageingDays)
-      .map((r) => ({
-        value: r.id,
-        label: r.invoiceNo,
-        sublabel: `${formatCurrency(r.outstanding)} · ${r.ageingDays > 0 ? `${r.ageingDays}d overdue` : "not due"}`,
-      }));
-  }, [invoiceRows, previewCustomerId]);
-
-  function handleScopeChange(next: ReminderScope) {
-    setScope(next);
-    setPreviewInvoiceId(null);
-  }
-
-  function handleCustomerChange(id: string) {
-    setPreviewCustomerId(id);
-    setPreviewInvoiceId(null);
-  }
-
-  const scopeFillValues = useMemo(() => {
-    if (scope === "invoice_wise") {
-      const row = invoiceRows.find((r) => r.id === previewInvoiceId);
-      return computeInvoiceWiseFillValues(row);
-    }
-    if (!previewCustomerId) return null;
-    const customer = customers.find((c) => c.id === previewCustomerId);
-    if (!customer) return null;
-    const customerRows = invoiceRows.filter((r) => r.customerId === previewCustomerId);
-    return computeCustomerWiseFillValues(customer.name, customerRows);
-  }, [scope, previewInvoiceId, previewCustomerId, invoiceRows, customers]);
-
-  const invoiceTableHtml = useMemo(() => {
-    if (scope === "invoice_wise") {
-      const row = invoiceRows.find((r) => r.id === previewInvoiceId);
-      if (!row) return undefined;
-      return buildInvoiceTableHtml(toInvoiceTableRows([row], descriptions));
-    }
-    if (!previewCustomerId) return undefined;
-    const customerRows = invoiceRows.filter((r) => r.customerId === previewCustomerId && r.outstanding > 0);
-    return buildInvoiceTableHtml(toInvoiceTableRows(customerRows, descriptions));
-  }, [scope, previewInvoiceId, previewCustomerId, invoiceRows, descriptions]);
-
-  function fillForPreview(text: string) {
-    return fillReminderTemplate(text, scopeFillValues ?? SAMPLE_FILL_VALUES);
-  }
 
   function insertToken(token: string) {
     if (lastFocused === "subject" && subjectRef.current) {
@@ -282,10 +274,10 @@ export default function ReminderTemplatePage() {
       return;
     }
 
-    if (activeConfig) {
+    if (activeDefaults) {
       const { data, error } = await supabase
         .from("reminder_templates")
-        .insert({ name: activeConfig.templateName, subject, body })
+        .insert({ name: activeDefaults.templateName, subject, body })
         .select()
         .single();
       setSaving(false);
@@ -322,7 +314,13 @@ export default function ReminderTemplatePage() {
           {/* Editor column */}
           <div className="space-y-6">
             <Card title="Reminder type" subtitle="Each type is its own template — pick one to edit, or start a new one.">
-              <ReminderTypeTabs activeTypeId={reminderTypeId} savedNames={savedNames} onSelect={(id) => loadReminderType(id, templates)} />
+              <ScopeToggle scope={scope} onChange={handleScopeChange} />
+              <ReminderTypeTabs
+                activeTypeId={reminderTypeId}
+                scope={scope}
+                savedNames={savedNames}
+                onSelect={(id) => loadReminderType(id, templates)}
+              />
               <OtherTemplatesSelect templates={customTemplates} activeId={customTemplateId} onSelect={(id) => loadCustomTemplate(id, templates)} />
             </Card>
 
@@ -409,31 +407,17 @@ export default function ReminderTemplatePage() {
           </div>
 
           {/* Preview column */}
-          <div className="sticky top-6 space-y-4">
-            <Card title="Reminder scope" subtitle="Choose real data to preview — this doesn't change what gets saved.">
-              <ReminderScopePanel
-                scope={scope}
-                onScopeChange={handleScopeChange}
-                customerOptions={customerOptions}
-                selectedCustomerId={previewCustomerId}
-                onCustomerChange={handleCustomerChange}
-                invoiceOptions={invoiceOptions}
-                selectedInvoiceId={previewInvoiceId}
-                onInvoiceChange={setPreviewInvoiceId}
-              />
-            </Card>
-
-            <LivePreviewPanel
-              reminderType={activeConfig ?? REMINDER_TYPES[0]}
-              subject={fillForPreview(subject)}
-              body={fillForPreview(body)}
-              invoiceTableHtml={invoiceTableHtml}
-              attachmentIds={attachmentIds}
-              attachmentOptions={DEFAULT_ATTACHMENT_OPTIONS}
-              signature={signature}
-              missingTokens={missingTokens}
-            />
-          </div>
+          <LivePreviewPanel
+            reminderType={activeConfig ?? REMINDER_TYPES[0]}
+            subject={fillForPreview(subject)}
+            body={fillForPreview(body)}
+            invoiceTableHtml={scope === "customer_wise" ? invoiceTableHtml : null}
+            invoiceTableError={scope === "customer_wise" ? invoiceTableError : null}
+            attachmentIds={attachmentIds}
+            attachmentOptions={DEFAULT_ATTACHMENT_OPTIONS}
+            signature={signature}
+            missingTokens={missingTokens}
+          />
         </div>
       )}
     </>

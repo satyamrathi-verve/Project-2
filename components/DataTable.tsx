@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { IconFilter } from "@/components/ui";
 
 export interface Column<T> {
   key: string;
@@ -8,8 +9,10 @@ export interface Column<T> {
   className?: string;
   /** Set to allow clicking this header to sort — needs `sort`/`onSortChange` on the table too. */
   sortable?: boolean;
-  /** Optional filter control (an <input>/<select>) shown in a second header row, aligned under this column. */
+  /** Optional filter control (an <input>/<select>), shown in a small popup opened from a filter icon in this column's header. */
   filter?: ReactNode;
+  /** Set true when this column's filter currently has a value, to highlight its icon (Excel-style). */
+  filterActive?: boolean;
 }
 
 export interface SortState {
@@ -57,11 +60,13 @@ function SortArrows({ dir }: { dir?: "asc" | "desc" }) {
                       fixed positioning, not inside the accessory itself.
     rowClassName    — extra classes per row, e.g. to flag a problem row in red,
                       or (row, index) => ... for zebra-striping
-    column.filter   — set on individual columns to get an Excel-style filter row
-                      under the header; the table only renders that row when at
-                      least one column supplies one. Filtering the rows is the
-                      caller's job (same pattern as sort) — this just gives each
-                      filter control a home aligned with its column.
+    column.filter   — set on individual columns to get a true Excel-style filter:
+                      a small funnel icon next to the header label, click to open
+                      a small popup (closes on outside click or Escape) holding
+                      whatever control you pass. The header stays single-line —
+                      no extra row, no permanent input box. Filtering the rows is
+                      the caller's job (same pattern as sort); pass filterActive
+                      to tint the icon once that column's filter has a value.
 */
 export function DataTable<T extends { id: string }>({
   columns,
@@ -108,6 +113,16 @@ export function DataTable<T extends { id: string }>({
   const checkboxClass =
     "h-4 w-4 cursor-pointer rounded border-slate-300 accent-brand transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:border-slate-600";
 
+  // Which column's filter popup (if any) is currently open — only one at a time.
+  const [openFilterKey, setOpenFilterKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openFilterKey) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpenFilterKey(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openFilterKey]);
+
   return (
     <div className="themed overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
       <div className="overflow-x-auto">
@@ -139,42 +154,58 @@ export function DataTable<T extends { id: string }>({
               )}
               {columns.map((c) => {
                 const active = sort?.key === c.key;
-                if (c.sortable && onSortChange) {
-                  return (
-                    <th
-                      key={c.key}
-                      className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}
+                const filterOpen = openFilterKey === c.key;
+                const label =
+                  c.sortable && onSortChange ? (
+                    <button
+                      onClick={() => onSortChange(c.key)}
+                      className="-mx-1.5 -my-1 inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 align-middle uppercase tracking-wide transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     >
-                      <button
-                        onClick={() => onSortChange(c.key)}
-                        className="-mx-1.5 -my-1 inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 align-middle uppercase tracking-wide transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                      >
-                        {c.header}
-                        <SortArrows dir={active ? sort!.dir : undefined} />
-                      </button>
-                    </th>
+                      {c.header}
+                      <SortArrows dir={active ? sort!.dir : undefined} />
+                    </button>
+                  ) : (
+                    <span>{c.header}</span>
                   );
-                }
+
                 return (
                   <th
                     key={c.key}
-                    className={`whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}
+                    className={`relative whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300 ${c.className ?? ""}`}
                   >
-                    {c.header}
+                    <span className="inline-flex items-center gap-1.5">
+                      {label}
+                      {c.filter && (
+                        <button
+                          type="button"
+                          aria-label={`Filter ${c.header}`}
+                          onClick={() => setOpenFilterKey(filterOpen ? null : c.key)}
+                          className={`rounded p-0.5 transition-colors ${
+                            c.filterActive
+                              ? "text-brand"
+                              : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          <IconFilter className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+
+                    {c.filter && filterOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setOpenFilterKey(null)} />
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-slate-200 bg-white p-2 normal-case tracking-normal shadow-lg dark:border-slate-700 dark:bg-slate-800"
+                        >
+                          {c.filter}
+                        </div>
+                      </>
+                    )}
                   </th>
                 );
               })}
             </tr>
-            {columns.some((c) => c.filter) && (
-              <tr className="border-b border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                {showLeading && <th className="w-14 px-3 py-2" />}
-                {columns.map((c) => (
-                  <th key={c.key} className={`px-3 py-2 align-top font-normal ${c.className ?? ""}`}>
-                    {c.filter}
-                  </th>
-                ))}
-              </tr>
-            )}
           </thead>
           <tbody>
             {rows.length === 0 ? (
