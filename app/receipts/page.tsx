@@ -20,6 +20,8 @@ import {
   IconWallet,
   IconSearch,
   IconSliders,
+  IconRotateCcw,
+  IconX,
   IconPlus,
   inr,
   inrCompact,
@@ -81,7 +83,10 @@ export default function ReceiptListPage() {
 
   // Column customization + row selection (presentation state only).
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
-  const [customizeAt, setCustomizeAt] = useState<{ top: number; left: number } | null>(null);
+  const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [draftCols, setDraftCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
+  const [colSearch, setColSearch] = useState("");
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
 
   // Restore saved column preferences (after mount, so SSR markup matches).
@@ -97,15 +102,18 @@ export default function ReceiptListPage() {
     }
   }, []);
 
-  // Close the customize popup on Escape.
+  // Close the settings menu / customize modal on Escape.
   useEffect(() => {
-    if (!customizeAt) return;
+    if (!menuAt && !modalOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setCustomizeAt(null);
+      if (e.key === "Escape") {
+        setMenuAt(null);
+        setModalOpen(false);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [customizeAt]);
+  }, [menuAt, modalOpen]);
 
   useEffect(() => {
     if (!isConfigured || !supabase) {
@@ -190,21 +198,40 @@ export default function ReceiptListPage() {
     return out;
   }, [rows, search, modeFilter, sort]);
 
-  // ---- column customization ------------------------------------------------
-  const visibleCount = COLUMN_DEFS.filter((c) => visibleCols[c.key]).length;
+  // ---- column customization (Zoho-style: draft in a modal, applied on Save) --
+  const draftCount = COLUMN_DEFS.filter((c) => draftCols[c.key]).length;
+  const filteredDefs = COLUMN_DEFS.filter((c) =>
+    c.label.toLowerCase().includes(colSearch.trim().toLowerCase())
+  );
 
-  const toggleColumn = (key: ColKey) => {
-    setVisibleCols((v) => {
-      // keep at least one column visible
-      if (v[key] && COLUMN_DEFS.filter((c) => v[c.key]).length <= 1) return v;
-      const next = { ...v, [key]: !v[key] };
-      try {
-        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
+  const openCustomizeModal = () => {
+    setMenuAt(null);
+    setDraftCols(visibleCols);
+    setColSearch("");
+    setModalOpen(true);
+  };
+
+  const toggleDraft = (key: ColKey) => setDraftCols((d) => ({ ...d, [key]: !d[key] }));
+
+  const saveColumns = () => {
+    if (draftCount === 0) return;
+    setVisibleCols(draftCols);
+    try {
+      localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(draftCols));
+    } catch {
+      /* ignore */
+    }
+    setModalOpen(false);
+  };
+
+  const resetColumns = () => {
+    setVisibleCols(DEFAULT_COLS);
+    try {
+      localStorage.removeItem(COLS_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    setMenuAt(null);
   };
 
   const allColumns: Record<ColKey, Column<ReceiptRow>> = {
@@ -275,11 +302,11 @@ export default function ReceiptListPage() {
   const customizeButton = (
     <button
       type="button"
-      aria-label="Customize columns"
-      title="Customize columns"
+      aria-label="Table settings"
+      title="Table settings"
       onClick={(e) => {
         const r = e.currentTarget.getBoundingClientRect();
-        setCustomizeAt((open) => (open ? null : { top: r.bottom + 6, left: r.left }));
+        setMenuAt((open) => (open ? null : { top: r.bottom + 6, left: r.left }));
       }}
       className="flex h-6 w-6 flex-none items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
     >
@@ -416,41 +443,122 @@ export default function ReceiptListPage() {
         </>
       )}
 
-      {/* Customize Columns popup — rendered at page level (fixed) so the
-          table's overflow container can't clip it. */}
-      {customizeAt && (
-        <div className="fixed inset-0 z-40" onClick={() => setCustomizeAt(null)}>
+      {/* Table settings menu — rendered at page level (fixed) so the table's
+          overflow container can't clip it. */}
+      {menuAt && (
+        <div className="fixed inset-0 z-40" onClick={() => setMenuAt(null)}>
           <div
-            style={{ top: customizeAt.top, left: customizeAt.left }}
+            style={{ top: menuAt.top, left: menuAt.left }}
             onClick={(e) => e.stopPropagation()}
-            className="fixed w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/40"
+            className="animate-pop-in fixed w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/40"
           >
-            <p className="px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            <button
+              onClick={openCustomizeModal}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-brand hover:text-white dark:text-slate-200 dark:hover:bg-brand"
+            >
+              <IconSliders className="h-4 w-4 flex-none" />
               Customize Columns
-            </p>
-            {COLUMN_DEFS.map((c) => {
-              const checked = visibleCols[c.key];
-              const isLastVisible = checked && visibleCount <= 1;
-              return (
-                <label
-                  key={c.key}
-                  className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 transition-colors dark:text-slate-200 ${
-                    isLastVisible
-                      ? "cursor-not-allowed opacity-50"
-                      : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/60"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={isLastVisible}
-                    onChange={() => toggleColumn(c.key)}
-                    className="h-4 w-4 rounded border-slate-300 accent-brand dark:border-slate-600"
-                  />
-                  {c.label}
-                </label>
-              );
-            })}
+            </button>
+            <button
+              onClick={resetColumns}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700/60"
+            >
+              <IconRotateCcw className="h-4 w-4 flex-none" />
+              Reset Columns
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Customize Columns modal — Zoho Books style: search, checkbox list,
+          selected count, Save/Cancel. Changes apply only on Save. */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="animate-fade-in absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] dark:bg-black/60"
+            onClick={() => setModalOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Customize Columns"
+            className="animate-pop-in relative flex w-full max-w-md flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/50"
+          >
+            {/* header */}
+            <div className="flex items-center gap-2.5 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+              <IconSliders className="h-4 w-4 flex-none text-slate-500 dark:text-slate-400" />
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Customize Columns</h3>
+              <span className="ml-auto whitespace-nowrap text-sm font-medium text-slate-500 dark:text-slate-400">
+                {draftCount} of {COLUMN_DEFS.length} Selected
+              </span>
+              <button
+                onClick={() => setModalOpen(false)}
+                aria-label="Close"
+                className="flex h-7 w-7 flex-none items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800"
+              >
+                <IconX className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* search */}
+            <div className="px-5 pt-4">
+              <div className="relative">
+                <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                <input
+                  autoFocus
+                  value={colSearch}
+                  onChange={(e) => setColSearch(e.target.value)}
+                  placeholder="Search"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 outline-none transition-colors focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                />
+              </div>
+            </div>
+
+            {/* column list */}
+            <div className="mt-3 max-h-72 overflow-y-auto px-3 pb-3">
+              {filteredDefs.length === 0 ? (
+                <p className="px-2.5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+                  No columns match &ldquo;{colSearch}&rdquo;
+                </p>
+              ) : (
+                filteredDefs.map((c) => (
+                  <label
+                    key={c.key}
+                    className="mb-1 flex cursor-pointer items-center gap-3 rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors last:mb-0 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={draftCols[c.key]}
+                      onChange={() => toggleDraft(c.key)}
+                      className="h-4 w-4 rounded border-slate-300 accent-brand dark:border-slate-600"
+                    />
+                    {c.label}
+                  </label>
+                ))
+              )}
+            </div>
+
+            {/* footer */}
+            <div className="flex items-center gap-2 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+              <button
+                onClick={saveColumns}
+                disabled={draftCount === 0}
+                className="rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              {draftCount === 0 && (
+                <span className="ml-1 text-xs font-medium text-red-500 dark:text-red-400">
+                  Select at least one column
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
