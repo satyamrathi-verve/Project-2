@@ -180,7 +180,7 @@ export function KpiCard({
   value: ReactNode;
   sub?: ReactNode;
   icon?: ReactNode;
-  accent?: "brand" | "emerald" | "amber" | "violet";
+  accent?: "brand" | "emerald" | "amber" | "violet" | "red";
 }) {
   const chip =
     accent === "emerald"
@@ -189,6 +189,8 @@ export function KpiCard({
       ? "bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400"
       : accent === "violet"
       ? "bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400"
+      : accent === "red"
+      ? "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
       : "bg-brand/10 text-brand dark:bg-brand/20 dark:text-blue-300";
   return (
     <div className="themed rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700">
