@@ -193,10 +193,20 @@ export default function CustomerMasterPage() {
 
   const columns: Column<Customer>[] = [
     { key: "code", header: "Code" },
-    { key: "name", header: "Customer Name" },
+    {
+      key: "name",
+      header: "Customer Name",
+      className: "max-w-[220px]",
+      render: (r) => <span className="line-clamp-2">{r.name}</span>,
+    },
     { key: "contact_person", header: "Contact Person", render: (r) => r.contact_person || "—" },
     { key: "email", header: "Email", render: (r) => r.email || "—" },
-    { key: "phone", header: "Phone", render: (r) => r.phone || "—" },
+    {
+      key: "phone",
+      header: "Phone",
+      className: "whitespace-nowrap",
+      render: (r) => r.phone || "—",
+    },
     {
       key: "credit_limit",
       header: "Credit Limit",
