@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormField, inputClass } from "@/components/FormField";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { AFTER_SIGNIN_PATH, isSignedIn, signIn, ROLES, type Role } from "@/lib/auth";
 
 /*
@@ -36,17 +37,20 @@ export default function SignInPage() {
   if (checkingSession) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 px-4 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/40">
         {/* App name + tagline */}
         <div className="mb-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">Verve</p>
-          <h1 className="mt-1 text-3xl font-bold text-slate-900">AR Manager</h1>
-          <p className="mt-2 text-sm text-slate-500">Accounts Receivable Control Center</p>
+          <h1 className="mt-1 text-3xl font-bold text-slate-900 dark:text-white">AR Manager</h1>
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Accounts Receivable Control Center</p>
         </div>
 
         {/* Plain-language explanation that this is demo access */}
-        <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        <div className="mb-6 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-200">
           This is a demo access screen. Pick the role you&apos;d like to explore the
           tool as — no password needed.
         </div>
@@ -72,7 +76,7 @@ export default function SignInPage() {
           Sign In
         </button>
 
-        <p className="mt-6 text-center text-xs text-slate-400">
+        <p className="mt-6 text-center text-xs text-slate-400 dark:text-slate-500">
           Demo only — no real password check. Your role is remembered on this
           device until you sign out.
         </p>

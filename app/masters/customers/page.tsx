@@ -261,8 +261,8 @@ export default function CustomerMasterPage() {
         <div
           className={`mb-4 rounded-lg border px-4 py-2 text-sm ${
             banner.type === "success"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+              : "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
           }`}
         >
           {banner.text}
@@ -279,11 +279,11 @@ export default function CustomerMasterPage() {
       </div>
 
       {loadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           Couldn&apos;t load customers: {loadError}
         </div>
       ) : loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">
           Loading customers…
         </div>
       ) : (
@@ -299,15 +299,15 @@ export default function CustomerMasterPage() {
       )}
 
       {panelOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30">
-          <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-              <h3 className="text-lg font-bold text-slate-900">
+        <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 dark:bg-black/50">
+          <div className="themed flex h-full w-full max-w-lg flex-col bg-white shadow-xl dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                 {form.id ? "Edit Customer" : "Add Customer"}
               </h3>
               <button
                 onClick={closePanel}
-                className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
                 aria-label="Close"
               >
                 ✕
@@ -428,10 +428,10 @@ export default function CustomerMasterPage() {
               </FormSection>
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4 dark:border-slate-800">
               <button
                 onClick={closePanel}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
