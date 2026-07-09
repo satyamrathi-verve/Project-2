@@ -21,8 +21,14 @@ body {
 }
 
 /* Print-friendly reports: hide the sidebar and anything marked .no-print,
-   let content take the full page. Used by the Customer Statement report. */
+   let content take the full page. Used by the Customer Statement report and
+   the Invoice Print Preview. */
 @media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
   nav {
     display: none !important;
   }
