@@ -19,6 +19,7 @@ import {
   IconCalendar,
   IconWallet,
   IconSearch,
+  IconSliders,
   IconPlus,
   inr,
   inrCompact,
@@ -26,8 +27,10 @@ import {
 
 /*
   Screen 8 — Receipt List (default /receipts).
-  Read-only dashboard of all receipts with KPIs, search, filter, sort.
-  Reads only (receipts + customers + receipt_allocations); no writes here.
+  Read-only dashboard of all receipts with KPIs, search, filter, sort,
+  row selection, and a customize-columns popup (choices persist in
+  localStorage). Reads only (receipts + customers + receipt_allocations);
+  no writes here.
 */
 
 const EPS = 0.005;
@@ -41,6 +44,31 @@ interface ReceiptRow extends Receipt {
 
 type SortKey = "date_desc" | "date_asc" | "amount_desc" | "amount_asc";
 
+// ---- customizable columns ---------------------------------------------------
+type ColKey = "receipt_no" | "receipt_date" | "customer" | "mode" | "amount" | "allocation" | "reference";
+
+const COLUMN_DEFS: { key: ColKey; label: string }[] = [
+  { key: "receipt_no", label: "Receipt Number" },
+  { key: "receipt_date", label: "Receipt Date" },
+  { key: "customer", label: "Customer Name" },
+  { key: "mode", label: "Payment Mode" },
+  { key: "amount", label: "Amount" },
+  { key: "allocation", label: "Allocation Status" },
+  { key: "reference", label: "Reference Number" },
+];
+
+const DEFAULT_COLS: Record<ColKey, boolean> = {
+  receipt_no: true,
+  receipt_date: true,
+  customer: true,
+  mode: true,
+  amount: true,
+  allocation: true,
+  reference: true,
+};
+
+const COLS_STORAGE_KEY = "receipts.visibleColumns.v1";
+
 export default function ReceiptListPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ReceiptRow[]>([]);
@@ -50,6 +78,34 @@ export default function ReceiptListPage() {
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | ReceiptMode>("all");
   const [sort, setSort] = useState<SortKey>("date_desc");
+
+  // Column customization + row selection (presentation state only).
+  const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>(DEFAULT_COLS);
+  const [customizeAt, setCustomizeAt] = useState<{ top: number; left: number } | null>(null);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+
+  // Restore saved column preferences (after mount, so SSR markup matches).
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLS_STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Partial<Record<ColKey, boolean>>;
+        setVisibleCols((d) => ({ ...d, ...saved }));
+      }
+    } catch {
+      /* ignore bad/blocked storage */
+    }
+  }, []);
+
+  // Close the customize popup on Escape.
+  useEffect(() => {
+    if (!customizeAt) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCustomizeAt(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [customizeAt]);
 
   useEffect(() => {
     if (!isConfigured || !supabase) {
@@ -134,34 +190,60 @@ export default function ReceiptListPage() {
     return out;
   }, [rows, search, modeFilter, sort]);
 
-  const columns: Column<ReceiptRow>[] = [
-    {
+  // ---- column customization ------------------------------------------------
+  const visibleCount = COLUMN_DEFS.filter((c) => visibleCols[c.key]).length;
+
+  const toggleColumn = (key: ColKey) => {
+    setVisibleCols((v) => {
+      // keep at least one column visible
+      if (v[key] && COLUMN_DEFS.filter((c) => v[c.key]).length <= 1) return v;
+      const next = { ...v, [key]: !v[key] };
+      try {
+        localStorage.setItem(COLS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const allColumns: Record<ColKey, Column<ReceiptRow>> = {
+    receipt_no: {
       key: "receipt_no",
-      header: "Receipt",
+      header: "Receipt #",
       render: (r) => (
-        <div>
-          <span className="font-semibold text-slate-900 dark:text-white">{r.receipt_no}</span>
-          {r.reference && <span className="block text-xs text-slate-400 dark:text-slate-500">{r.reference}</span>}
-        </div>
+        <Link
+          href={`/receipts/${r.id}`}
+          onClick={(e) => e.stopPropagation()}
+          className="rounded font-semibold text-brand transition-colors hover:text-brand-dark hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:hover:text-blue-300"
+        >
+          {r.receipt_no}
+        </Link>
       ),
     },
-    {
+    receipt_date: {
+      key: "receipt_date",
+      header: "Date",
+      render: (r) => <span className="text-slate-600 dark:text-slate-300">{r.receipt_date}</span>,
+    },
+    customer: {
       key: "customer",
       header: "Customer",
       render: (r) => (
-        <div className="flex items-center gap-3">
+        <span className="flex items-center gap-3">
           <Avatar name={r.customerName} size="sm" />
-          <div className="min-w-0">
-            <span className="block truncate font-medium text-slate-800 dark:text-slate-100">{r.customerName}</span>
-            <span className="block text-xs text-slate-400 dark:text-slate-500">{r.customerCode}</span>
-          </div>
-        </div>
+          <span className="truncate font-medium text-slate-800 dark:text-slate-100">{r.customerName}</span>
+        </span>
       ),
     },
-    { key: "receipt_date", header: "Date", render: (r) => <span className="text-slate-600 dark:text-slate-300">{r.receipt_date}</span> },
-    { key: "mode", header: "Mode", render: (r) => <ModeBadge mode={r.mode} /> },
-    { key: "amount", header: "Amount", className: "text-right", render: (r) => <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{inr(Number(r.amount))}</span> },
-    {
+    mode: { key: "mode", header: "Mode", render: (r) => <ModeBadge mode={r.mode} /> },
+    amount: {
+      key: "amount",
+      header: "Amount",
+      className: "text-right",
+      render: (r) => <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{inr(Number(r.amount))}</span>,
+    },
+    allocation: {
       key: "allocation",
       header: "Allocation",
       className: "text-right",
@@ -176,7 +258,34 @@ export default function ReceiptListPage() {
           </span>
         ),
     },
-  ];
+    reference: {
+      key: "reference",
+      header: "Reference #",
+      render: (r) =>
+        r.reference ? (
+          <span className="text-slate-600 dark:text-slate-300">{r.reference}</span>
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        ),
+    },
+  };
+
+  const columns = COLUMN_DEFS.filter((c) => visibleCols[c.key]).map((c) => allColumns[c.key]);
+
+  const customizeButton = (
+    <button
+      type="button"
+      aria-label="Customize columns"
+      title="Customize columns"
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        setCustomizeAt((open) => (open ? null : { top: r.bottom + 6, left: r.left }));
+      }}
+      className="flex h-6 w-6 flex-none items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-200/70 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 dark:text-slate-500 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+    >
+      <IconSliders className="h-4 w-4" />
+    </button>
+  );
 
   const newButton = (
     <Link
@@ -291,12 +400,59 @@ export default function ReceiptListPage() {
             rows={visible}
             stickyHeader
             onRowClick={(r) => router.push(`/receipts/${r.id}`)}
+            selectable
+            selectedIds={selected}
+            onSelectionChange={(ids) => setSelected(new Set(ids))}
+            headerAccessory={customizeButton}
             empty="No receipts match your search."
           />
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-            Showing {visible.length} of {rows.length} receipts · click a row for details
+            Showing {visible.length} of {rows.length} receipts
+            {selected.size > 0 && (
+              <span className="font-medium text-brand"> · {selected.size} selected</span>
+            )}
+            {" · "}click a row for details
           </p>
         </>
+      )}
+
+      {/* Customize Columns popup — rendered at page level (fixed) so the
+          table's overflow container can't clip it. */}
+      {customizeAt && (
+        <div className="fixed inset-0 z-40" onClick={() => setCustomizeAt(null)}>
+          <div
+            style={{ top: customizeAt.top, left: customizeAt.left }}
+            onClick={(e) => e.stopPropagation()}
+            className="fixed w-60 rounded-xl border border-slate-200 bg-white p-2 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:shadow-black/40"
+          >
+            <p className="px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Customize Columns
+            </p>
+            {COLUMN_DEFS.map((c) => {
+              const checked = visibleCols[c.key];
+              const isLastVisible = checked && visibleCount <= 1;
+              return (
+                <label
+                  key={c.key}
+                  className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 transition-colors dark:text-slate-200 ${
+                    isLastVisible
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/60"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={isLastVisible}
+                    onChange={() => toggleColumn(c.key)}
+                    className="h-4 w-4 rounded border-slate-300 accent-brand dark:border-slate-600"
+                  />
+                  {c.label}
+                </label>
+              );
+            })}
+          </div>
+        </div>
       )}
     </>
   );
