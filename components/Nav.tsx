@@ -24,7 +24,7 @@ const LINKS: { href: string; label: string; built: boolean }[] = [
   { href: "/followup/workspace", label: "Collections Workspace", built: true },
   { href: "/reminders", label: "Auto Email Shoot", built: false },
   { href: "/reports/statement", label: "Customer Statement", built: true },
-  { href: "/reports/ageing", label: "AR Ageing", built: false },
+  { href: "/reports/ageing", label: "AR Ageing", built: true },
   { href: "/reports/cashflow", label: "Cashflow Projection", built: true },
   { href: "/dashboard", label: "Dashboard", built: false },
 ];
@@ -45,7 +45,7 @@ export function Nav() {
   }
 
   return (
-    <nav className="themed flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+    <nav className="themed flex h-full w-60 flex-col gap-1 border-r border-slate-200 bg-white p-4 print:hidden dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-4 flex items-start justify-between gap-2 px-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-brand">Verve</p>
