@@ -89,6 +89,11 @@ const currency = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
 });
 
+// Compact input style for the per-column filter row — smaller than the
+// standard form inputClass so it fits neatly under a table header.
+const filterInputClass =
+  "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-normal text-slate-600 outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The 8 columns Import/Export/Customize Columns all agree on — matches the
@@ -115,6 +120,35 @@ export default function CustomerMasterPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+
+  // Excel-style per-column filters, shown as a second header row in the table.
+  // Text columns match "contains"; the three number columns match "at least".
+  const [colFilters, setColFilters] = useState({
+    code: "",
+    name: "",
+    contact_person: "",
+    email: "",
+    phone: "",
+    credit_limit: "",
+    credit_days: "",
+    opening_balance: "",
+  });
+  const hasColumnFilters = Object.values(colFilters).some((v) => v.trim() !== "");
+  function setColFilter(key: keyof typeof colFilters, value: string) {
+    setColFilters((prev) => ({ ...prev, [key]: value }));
+  }
+  function clearColumnFilters() {
+    setColFilters({
+      code: "",
+      name: "",
+      contact_person: "",
+      email: "",
+      phone: "",
+      credit_limit: "",
+      credit_days: "",
+      opening_balance: "",
+    });
+  }
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -260,13 +294,29 @@ export default function CustomerMasterPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter((c) =>
-      [c.code, c.name, c.contact_person, c.email, c.phone]
-        .filter((v): v is string => Boolean(v))
-        .some((v) => v.toLowerCase().includes(q))
-    );
-  }, [customers, search]);
+    const contains = (value: string | null, needle: string) =>
+      !needle.trim() || (value ?? "").toLowerCase().includes(needle.trim().toLowerCase());
+    const atLeast = (value: number | null | undefined, needle: string) =>
+      !needle.trim() || Number(value ?? 0) >= Number(needle);
+
+    return customers.filter((c) => {
+      if (q) {
+        const matchesGlobalSearch = [c.code, c.name, c.contact_person, c.email, c.phone]
+          .filter((v): v is string => Boolean(v))
+          .some((v) => v.toLowerCase().includes(q));
+        if (!matchesGlobalSearch) return false;
+      }
+      if (!contains(c.code, colFilters.code)) return false;
+      if (!contains(c.name, colFilters.name)) return false;
+      if (!contains(c.contact_person, colFilters.contact_person)) return false;
+      if (!contains(c.email, colFilters.email)) return false;
+      if (!contains(c.phone, colFilters.phone)) return false;
+      if (!atLeast(c.credit_limit, colFilters.credit_limit)) return false;
+      if (!atLeast(c.credit_days, colFilters.credit_days)) return false;
+      if (!atLeast(c.opening_balance, colFilters.opening_balance)) return false;
+      return true;
+    });
+  }, [customers, search, colFilters]);
 
   function openAddForm() {
     setForm(EMPTY_FORM);
@@ -381,9 +431,7 @@ export default function CustomerMasterPage() {
 
   function handleExportCurrentView(fmt: "xlsx" | "csv" | "pdf") {
     closeMoreMenu();
-    // Respects the current search and the currently-visible columns. This
-    // screen has no column sort/filter beyond search, so there's nothing
-    // else to carry over.
+    // Respects the current search, column filters, and the currently-visible columns.
     if (fmt === "xlsx") exportCustomersXlsx(filtered, orderedKeys, `Customer_Master_CurrentView_${todayStr()}.xlsx`);
     else if (fmt === "csv") exportCustomersCsv(filtered, orderedKeys, `Customer_Master_CurrentView_${todayStr()}.csv`);
     else printCustomers(filtered, orderedKeys, "Customer Master — Current View");
@@ -461,33 +509,120 @@ export default function CustomerMasterPage() {
   }
 
   const allColumns: Record<ExportColKey, Column<Customer>> = {
-    code: { key: "code", header: "Code", className: "font-medium text-slate-900 dark:text-white" },
+    code: {
+      key: "code",
+      header: "Code",
+      className: "font-medium text-slate-900 dark:text-white",
+      filter: (
+        <input
+          value={colFilters.code}
+          onChange={(e) => setColFilter("code", e.target.value)}
+          placeholder="Filter…"
+          className={filterInputClass}
+        />
+      ),
+    },
     name: {
       key: "name",
       header: "Customer Name",
       className: "max-w-[220px]",
       render: (r) => <span className="line-clamp-2">{r.name}</span>,
+      filter: (
+        <input
+          value={colFilters.name}
+          onChange={(e) => setColFilter("name", e.target.value)}
+          placeholder="Filter…"
+          className={filterInputClass}
+        />
+      ),
     },
-    contact_person: { key: "contact_person", header: "Contact Person", render: (r) => r.contact_person || "—" },
-    email: { key: "email", header: "Email", render: (r) => r.email || "—" },
-    phone: { key: "phone", header: "Phone", className: "whitespace-nowrap", render: (r) => r.phone || "—" },
+    contact_person: {
+      key: "contact_person",
+      header: "Contact Person",
+      render: (r) => r.contact_person || "—",
+      filter: (
+        <input
+          value={colFilters.contact_person}
+          onChange={(e) => setColFilter("contact_person", e.target.value)}
+          placeholder="Filter…"
+          className={filterInputClass}
+        />
+      ),
+    },
+    email: {
+      key: "email",
+      header: "Email",
+      render: (r) => r.email || "—",
+      filter: (
+        <input
+          value={colFilters.email}
+          onChange={(e) => setColFilter("email", e.target.value)}
+          placeholder="Filter…"
+          className={filterInputClass}
+        />
+      ),
+    },
+    phone: {
+      key: "phone",
+      header: "Phone",
+      className: "whitespace-nowrap",
+      render: (r) => r.phone || "—",
+      filter: (
+        <input
+          value={colFilters.phone}
+          onChange={(e) => setColFilter("phone", e.target.value)}
+          placeholder="Filter…"
+          className={filterInputClass}
+        />
+      ),
+    },
     credit_limit: {
       key: "credit_limit",
       header: "Credit Limit",
       className: "text-right tabular-nums",
       render: (r) => currency.format(r.credit_limit ?? 0),
+      filter: (
+        <input
+          type="number"
+          min={0}
+          value={colFilters.credit_limit}
+          onChange={(e) => setColFilter("credit_limit", e.target.value)}
+          placeholder="Min ₹"
+          className={`${filterInputClass} text-right`}
+        />
+      ),
     },
     credit_days: {
       key: "credit_days",
       header: "Credit Days",
       className: "text-right tabular-nums",
       render: (r) => `${r.credit_days} days`,
+      filter: (
+        <input
+          type="number"
+          min={0}
+          value={colFilters.credit_days}
+          onChange={(e) => setColFilter("credit_days", e.target.value)}
+          placeholder="Min days"
+          className={`${filterInputClass} text-right`}
+        />
+      ),
     },
     opening_balance: {
       key: "opening_balance",
       header: "Opening Balance",
       className: "text-right tabular-nums",
       render: (r) => currency.format(r.opening_balance ?? 0),
+      filter: (
+        <input
+          type="number"
+          min={0}
+          value={colFilters.opening_balance}
+          onChange={(e) => setColFilter("opening_balance", e.target.value)}
+          placeholder="Min ₹"
+          className={`${filterInputClass} text-right`}
+        />
+      ),
     },
   };
 
@@ -577,14 +712,25 @@ export default function CustomerMasterPage() {
           </div>
         )}
 
-        <div className="mb-4">
+        <div className="mb-2 flex flex-wrap items-center gap-3">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by code, name, contact person, email or phone…"
             className={`${inputClass} w-full max-w-md`}
           />
+          {hasColumnFilters && (
+            <button
+              onClick={clearColumnFilters}
+              className="rounded-lg px-3 py-2 text-xs font-semibold text-brand hover:bg-brand/10"
+            >
+              Clear column filters
+            </button>
+          )}
         </div>
+        <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+          Tip: use the filter boxes under each column heading below to narrow the list further.
+        </p>
 
         {loadError ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
@@ -600,9 +746,9 @@ export default function CustomerMasterPage() {
             empty={
               <div className="flex flex-col items-center gap-3 py-6">
                 <span className="text-sm text-slate-400 dark:text-slate-500">
-                  {search ? "No customers match your search." : "No customers yet."}
+                  {search || hasColumnFilters ? "No customers match your search/filters." : "No customers yet."}
                 </span>
-                {!search && (
+                {!search && !hasColumnFilters && (
                   <button
                     onClick={openAddForm}
                     className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"

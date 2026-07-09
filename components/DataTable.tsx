@@ -8,6 +8,8 @@ export interface Column<T> {
   className?: string;
   /** Set to allow clicking this header to sort — needs `sort`/`onSortChange` on the table too. */
   sortable?: boolean;
+  /** Optional filter control (an <input>/<select>) shown in a second header row, aligned under this column. */
+  filter?: ReactNode;
 }
 
 export interface SortState {
@@ -33,6 +35,11 @@ export interface SortState {
                       overflow, so render any dropdown/popup at page level with
                       fixed positioning, not inside the accessory itself.
     rowClassName    — extra classes per row, e.g. to flag a problem row in red
+    column.filter   — set on individual columns to get an Excel-style filter row
+                      under the header; the table only renders that row when at
+                      least one column supplies one. Filtering the rows is the
+                      caller's job (same pattern as sort) — this just gives each
+                      filter control a home aligned with its column.
 */
 export function DataTable<T extends { id: string }>({
   columns,
@@ -138,6 +145,16 @@ export function DataTable<T extends { id: string }>({
                 );
               })}
             </tr>
+            {columns.some((c) => c.filter) && (
+              <tr className="border-b border-slate-200 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
+                {showLeading && <th className="w-14 px-3 py-2" />}
+                {columns.map((c) => (
+                  <th key={c.key} className={`px-3 py-2 align-top font-normal ${c.className ?? ""}`}>
+                    {c.filter}
+                  </th>
+                ))}
+              </tr>
+            )}
           </thead>
           <tbody>
             {rows.length === 0 ? (
