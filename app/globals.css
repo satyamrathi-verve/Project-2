@@ -41,8 +41,8 @@ body {
    the Invoice Print Preview. */
 @media print {
   @page {
-    size: A4;
-    margin: 14mm;
+    size: A4 portrait;
+    margin: 15mm;
   }
 
   nav {
@@ -58,5 +58,33 @@ body {
   }
   body {
     background: white !important;
+  }
+
+  /*
+    Dedicated stylesheet for Customer Statement's print/PDF document
+    (app/reports/statement/StatementPrintView.tsx). Scoped to
+    .statement-print rather than every printed page in the app, since
+    Invoice Print Preview already has its own working look and wasn't
+    asked to change.
+  */
+  .statement-print {
+    font-family: "Inter", Arial, Calibri, sans-serif;
+    font-size: 11px;
+    color: #0f172a;
+  }
+  .statement-print table {
+    page-break-inside: auto;
+  }
+  .statement-print thead {
+    display: table-header-group;
+  }
+  .statement-print tfoot {
+    display: table-footer-group;
+  }
+  .statement-print tr {
+    page-break-inside: avoid;
+  }
+  .statement-print .statement-avoid-break {
+    page-break-inside: avoid;
   }
 }

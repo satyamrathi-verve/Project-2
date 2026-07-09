@@ -261,6 +261,23 @@ export function IconAlertTriangle({ className }: IconProps) {
     </svg>
   );
 }
+export function IconPrinter({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9V3h12v6" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 14h12v7H6z" />
+    </svg>
+  );
+}
+export function IconMail({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m2 7 10 6 10-6" />
+    </svg>
+  );
+}
 
 // ---- KPI tile --------------------------------------------------------------
 export function KpiCard({

@@ -34,7 +34,8 @@ export interface SortState {
                       customize-columns trigger). NOTE: the table wrapper clips
                       overflow, so render any dropdown/popup at page level with
                       fixed positioning, not inside the accessory itself.
-    rowClassName    — extra classes per row, e.g. to flag a problem row in red
+    rowClassName    — extra classes per row, e.g. to flag a problem row in red,
+                      or (row, index) => ... for zebra-striping
     column.filter   — set on individual columns to get an Excel-style filter row
                       under the header; the table only renders that row when at
                       least one column supplies one. Filtering the rows is the
@@ -67,7 +68,7 @@ export function DataTable<T extends { id: string }>({
   selectable?: boolean;
   selectedIds?: ReadonlySet<string>;
   onSelectionChange?: (ids: string[]) => void;
-  rowClassName?: (row: T) => string;
+  rowClassName?: (row: T, index: number) => string;
 }) {
   const sel = selectedIds ?? new Set<string>();
   const allIds = rows.map((r) => r.id);
@@ -167,14 +168,14 @@ export function DataTable<T extends { id: string }>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              rows.map((row, index) => (
                 <tr
                   key={row.id}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={`group border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50 ${
                     onRowClick ? "cursor-pointer" : ""
                   } ${selectable && sel.has(row.id) ? "bg-brand/[0.04] dark:bg-brand/[0.1]" : ""} ${
-                    rowClassName ? rowClassName(row) : ""
+                    rowClassName ? rowClassName(row, index) : ""
                   }`}
                 >
                   {showLeading && (
