@@ -286,12 +286,15 @@ export function KpiCard({
   sub,
   icon,
   accent = "brand",
+  onClick,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   icon?: ReactNode;
   accent?: "brand" | "emerald" | "amber" | "violet" | "red";
+  /** Makes the tile clickable — adds a pointer cursor, hover ring, and a "View details" affordance. */
+  onClick?: () => void;
 }) {
   const chip =
     accent === "emerald"
@@ -303,15 +306,23 @@ export function KpiCard({
       : accent === "red"
       ? "bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400"
       : "bg-brand/10 text-brand dark:bg-brand/20 dark:text-blue-300";
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="themed min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700">
+    <Tag
+      onClick={onClick}
+      className={cx(
+        "themed min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-slate-700",
+        onClick && "w-full cursor-pointer hover:-translate-y-0.5 hover:border-brand/40 hover:ring-1 hover:ring-brand/30"
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
         {icon && <span className={cx("flex h-9 w-9 flex-none items-center justify-center rounded-lg", chip)}>{icon}</span>}
       </div>
       <p className="mt-3 break-words text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{value}</p>
       {sub && <p className="mt-1 truncate text-xs text-slate-400 dark:text-slate-500">{sub}</p>}
-    </div>
+      {onClick && <p className="mt-2 text-xs font-semibold text-brand">View details &rarr;</p>}
+    </Tag>
   );
 }
 

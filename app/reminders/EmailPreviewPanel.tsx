@@ -5,7 +5,13 @@ import { useMemo } from "react";
 import { FormField, inputClass } from "@/components/FormField";
 import { Badge, type BadgeTone } from "@/components/Badge";
 import { formatCurrency, formatDate, fillReminderTemplate } from "@/lib/collections";
-import { reminderStageLabel, type Candidate, type CampaignSummary, type EmailStatus } from "@/lib/reminderCampaign";
+import {
+  fillConsolidatedReminderHtml,
+  reminderStageLabel,
+  type Candidate,
+  type CampaignSummary,
+  type EmailStatus,
+} from "@/lib/reminderCampaign";
 import type { ReminderTemplate } from "@/lib/types";
 
 const STATUS_TONE: Record<EmailStatus, BadgeTone> = {
@@ -65,21 +71,21 @@ export function EmailPreviewPanel({
     if (!activeCandidate || !primary) return subject;
     return fillReminderTemplate(subject, {
       customer: activeCandidate.customer.name,
-      amount: primary.outstanding,
-      daysOverdue: primary.ageing,
+      amount: activeCandidate.outstanding,
+      daysOverdue: activeCandidate.maxAgeing,
       invoiceNo: primary.invoice_no,
     });
   }, [subject, activeCandidate, primary]);
 
-  const filledBody = useMemo(() => {
-    if (!activeCandidate || !primary) return body;
-    return fillReminderTemplate(body, {
-      customer: activeCandidate.customer.name,
-      amount: primary.outstanding,
-      daysOverdue: primary.ageing,
-      invoiceNo: primary.invoice_no,
+  // Real HTML — one row per outstanding invoice, rendered exactly as it
+  // would be written to reminder_log if this customer is sent to.
+  const filledBodyHtml = useMemo(() => {
+    if (!activeCandidate) return "";
+    return fillConsolidatedReminderHtml(body, {
+      customerName: activeCandidate.customer.name,
+      invoices: activeCandidate.invoices,
     });
-  }, [body, activeCandidate, primary]);
+  }, [body, activeCandidate]);
 
   return (
     <div className="space-y-4">
@@ -143,18 +149,25 @@ export function EmailPreviewPanel({
               </p>
             )}
 
-            {/* Invoice preview — every outstanding invoice for this customer */}
+            {/* Attachments — every outstanding invoice for this customer, each with a real PDF link */}
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Outstanding invoices ({activeCandidate.invoices.length})
+                Attachments — Invoice PDFs ({activeCandidate.invoices.length})
               </p>
               <div className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
                 {activeCandidate.invoices.map((inv) => (
                   <div key={inv.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                     <div>
-                      <p className="font-semibold text-slate-800 dark:text-slate-100">{inv.invoice_no}</p>
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">
+                        <Link href={`/invoices/${inv.id}`} className="hover:underline">
+                          {inv.invoice_no}
+                        </Link>
+                      </p>
                       <p className="text-slate-400">
-                        {formatDate(inv.invoice_date)} · due {formatDate(inv.due_date)}
+                        {formatDate(inv.invoice_date)} · due {formatDate(inv.due_date)} ·{" "}
+                        <Link href={`/invoices/${inv.id}/print`} className="hover:underline">
+                          PDF
+                        </Link>
                       </p>
                     </div>
                     <div className="text-right">
@@ -170,8 +183,10 @@ export function EmailPreviewPanel({
               </div>
             </div>
 
-            {/* Rendered email */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800">
+            {/* Rendered email — kept on a fixed light "paper" background regardless
+                of app theme, since the injected HTML has hardcoded email-safe
+                inline colors (an actual mail client is always light-background). */}
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800">
               <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/60">
                 <p className="text-xs text-slate-400">To</p>
                 <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
@@ -183,9 +198,14 @@ export function EmailPreviewPanel({
                 </p>
               </div>
               <div className="px-4 py-4">
-                <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
-                  {filledBody || <span className="text-slate-300">(empty)</span>}
-                </p>
+                {filledBodyHtml ? (
+                  <div
+                    className="overflow-x-auto text-sm [&_table]:my-3 [&_td]:align-top [&_th]:align-top"
+                    dangerouslySetInnerHTML={{ __html: filledBodyHtml }}
+                  />
+                ) : (
+                  <p className="text-slate-300">(empty)</p>
+                )}
                 {primary && (
                   <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-slate-50 p-3 text-center dark:bg-slate-800/60">
                     <div>
@@ -195,8 +215,10 @@ export function EmailPreviewPanel({
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase tracking-wide text-slate-400">Due date</p>
-                      <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">{formatDate(primary.due_date)}</p>
+                      <p className="text-[10px] uppercase tracking-wide text-slate-400">Oldest Due Date</p>
+                      <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">
+                        {formatDate(activeCandidate.oldestDueDate)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase tracking-wide text-slate-400">Reminder</p>
