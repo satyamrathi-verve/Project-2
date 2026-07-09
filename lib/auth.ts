@@ -52,7 +52,7 @@ export function signOut() {
 
 /*
   Where to send someone right after they sign in (or if they land on the Sign
-  In page while already signed in). The Dashboard is the AR command center,
-  so signing in lands there; every redirect picks this up automatically.
+  In page while already signed in). Login opens the Home page; every redirect
+  picks this up automatically.
 */
-export const AFTER_SIGNIN_PATH = "/dashboard";
+export const AFTER_SIGNIN_PATH = "/";

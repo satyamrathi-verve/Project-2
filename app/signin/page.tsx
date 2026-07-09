@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FormField, inputClass } from "@/components/FormField";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AFTER_SIGNIN_PATH, isSignedIn, signIn, ROLES, type Role } from "@/lib/auth";
+import { AFTER_SIGNIN_PATH, signIn, ROLES, type Role } from "@/lib/auth";
 
 /*
   The Sign In screen — the front door of AR Manager.
@@ -16,25 +16,14 @@ import { AFTER_SIGNIN_PATH, isSignedIn, signIn, ROLES, type Role } from "@/lib/a
 export default function SignInPage() {
   const router = useRouter();
   const [role, setRole] = useState<Role>("AR Manager");
-  const [checkingSession, setCheckingSession] = useState(true);
 
-  // If this device already has a signed-in session, skip the form entirely.
-  useEffect(() => {
-    if (isSignedIn()) {
-      router.replace(AFTER_SIGNIN_PATH);
-      return;
-    }
-    setCheckingSession(false);
-  }, [router]);
-
+  // Always show the Sign In page when it's opened (e.g. from the nav) — even if
+  // a session already exists. Choosing a role and signing in updates the session
+  // and opens the Home page.
   function handleSignIn() {
     signIn(role); // remember the chosen role for this browser
     router.replace(AFTER_SIGNIN_PATH);
   }
-
-  // Nothing to show while we check localStorage — avoids a flash of the login
-  // form for someone who's already signed in.
-  if (checkingSession) return null;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-blue-50 px-4 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
