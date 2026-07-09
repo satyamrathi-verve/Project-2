@@ -7,6 +7,7 @@ import { supabase, isConfigured } from "@/lib/supabase";
 import type { Customer, Receipt, ReceiptMode } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
+import { useTableSort } from "@/lib/useTableSort";
 import { NotConfigured } from "@/components/NotConfigured";
 import { useColumnCustomizer, ColumnSettingsTrigger } from "@/components/useColumnCustomizer";
 import {
@@ -68,6 +69,11 @@ export default function ReceiptListPage() {
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState<"all" | ReceiptMode>("all");
   const [sort, setSort] = useState<SortKey>("date_desc");
+
+  // Column-header sort STATE (reusable hook). Tracks the active column + direction
+  // only — the data is intentionally NOT reordered by this yet; clicking a header
+  // just updates the state and the header arrow. Actual sorting comes next.
+  const { sort: columnSort, toggleSort } = useTableSort();
 
   // Row selection (presentation state only).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -354,8 +360,10 @@ export default function ReceiptListPage() {
             selectedIds={selected}
             onSelectionChange={(ids) => setSelected(new Set(ids))}
             headerAccessory={customizeButton}
-            /* Shows the sort indicators; sorting itself is not wired yet. */
-            onSortChange={() => {}}
+            /* Header clicks update the sort state (active column + direction) and
+               drive the arrow; data is not reordered by this yet. */
+            sort={columnSort}
+            onSortChange={toggleSort}
             empty="No receipts match your search."
           />
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
