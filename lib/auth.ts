@@ -52,8 +52,7 @@ export function signOut() {
 
 /*
   Where to send someone right after they sign in (or if they land on the Sign
-  In page while already signed in). Customer Master isn't built yet, so this
-  points at the home page for now. Once Customer Master exists, change this
-  one line to "/masters/customers" and every redirect picks it up automatically.
+  In page while already signed in). The Dashboard is the AR command center,
+  so signing in lands there; every redirect picks this up automatically.
 */
-export const AFTER_SIGNIN_PATH = "/";
+export const AFTER_SIGNIN_PATH = "/dashboard";
