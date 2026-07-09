@@ -97,14 +97,14 @@ export function CustomerDrawer({
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-slate-900/30" />
-      <div className="relative flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-slate-900/30 dark:bg-black/50" />
+      <div className="relative flex h-full w-full max-w-2xl flex-col overflow-y-auto bg-white shadow-2xl dark:bg-slate-900">
+        <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5 dark:border-slate-800 dark:bg-slate-900">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{customer.code}</p>
-            <h3 className="text-xl font-bold text-slate-900">{customer.name}</h3>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">{customer.code}</p>
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white">{customer.name}</h3>
           </div>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-200">
             ✕
           </button>
         </div>
@@ -144,17 +144,17 @@ export function CustomerDrawer({
           {(lastFollowUp || latestPromise) && (
             <section className="grid grid-cols-2 gap-3 text-sm">
               {lastFollowUp && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Last follow-up</p>
-                  <p className="mt-1 text-slate-700">{formatDate(lastFollowUp.date)} · {lastFollowUp.method}</p>
-                  <p className="text-slate-500">Next: {formatDate(lastFollowUp.nextFollowUpDate)}</p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Last follow-up</p>
+                  <p className="mt-1 text-slate-700 dark:text-slate-300">{formatDate(lastFollowUp.date)} · {lastFollowUp.method}</p>
+                  <p className="text-slate-500 dark:text-slate-400">Next: {formatDate(lastFollowUp.nextFollowUpDate)}</p>
                 </div>
               )}
               {latestPromise && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Promise to Pay</p>
-                  <p className="mt-1 text-slate-700">{formatCurrency(latestPromise.amount)} by {formatDate(latestPromise.promiseDate)}</p>
-                  <p className="text-slate-500">Committed by {latestPromise.personCommitting}</p>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Promise to Pay</p>
+                  <p className="mt-1 text-slate-700 dark:text-slate-300">{formatCurrency(latestPromise.amount)} by {formatDate(latestPromise.promiseDate)}</p>
+                  <p className="text-slate-500 dark:text-slate-400">Committed by {latestPromise.personCommitting}</p>
                 </div>
               )}
             </section>
@@ -163,10 +163,10 @@ export function CustomerDrawer({
           {/* Invoice summary */}
           <section>
             <SectionTitle>Invoices</SectionTitle>
-            <div className="overflow-hidden rounded-lg border border-slate-200">
+            <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-500">
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
                     <th className="px-3 py-2 font-semibold">Invoice</th>
                     <th className="px-3 py-2 font-semibold">Date</th>
                     <th className="px-3 py-2 font-semibold">Due</th>
@@ -182,18 +182,18 @@ export function CustomerDrawer({
                     const outstanding = invoiceOutstanding(inv, allocatedByInvoice);
                     const ageing = ageingDays(inv.due_date);
                     return (
-                      <tr key={inv.id} className="border-b border-slate-100 last:border-0">
-                        <td className="px-3 py-2 font-medium text-slate-800">{inv.invoice_no}</td>
-                        <td className="px-3 py-2 text-slate-600">{formatDate(inv.invoice_date)}</td>
-                        <td className="px-3 py-2 text-slate-600">{formatDate(inv.due_date)}</td>
-                        <td className="px-3 py-2 text-right text-slate-600">{formatCurrency(inv.total)}</td>
-                        <td className="px-3 py-2 text-right text-slate-800">{formatCurrency(outstanding)}</td>
-                        <td className="px-3 py-2 text-slate-600">{AGEING_LABEL[ageingBucket(ageing)]}</td>
+                      <tr key={inv.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100">{inv.invoice_no}</td>
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{formatDate(inv.invoice_date)}</td>
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{formatDate(inv.due_date)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">{formatCurrency(inv.total)}</td>
+                        <td className="px-3 py-2 text-right text-slate-800 dark:text-slate-100">{formatCurrency(outstanding)}</td>
+                        <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{AGEING_LABEL[ageingBucket(ageing)]}</td>
                         <td className="px-3 py-2">
                           <InvoiceStatusBadge status={inv.status} />
                         </td>
                         <td className="px-3 py-2">
-                          <button disabled title="Sales Invoice View screen not built yet" className="cursor-not-allowed text-xs font-medium text-slate-300">
+                          <button disabled title="Sales Invoice View screen not built yet" className="cursor-not-allowed text-xs font-medium text-slate-300 dark:text-slate-600">
                             View
                           </button>
                         </td>
@@ -209,14 +209,14 @@ export function CustomerDrawer({
           <section>
             <SectionTitle>Recent activity</SectionTitle>
             {timeline.length === 0 ? (
-              <p className="text-sm text-slate-400">No activity yet.</p>
+              <p className="text-sm text-slate-400 dark:text-slate-500">No activity yet.</p>
             ) : (
-              <ol className="space-y-3 border-l border-slate-200 pl-4">
+              <ol className="space-y-3 border-l border-slate-200 pl-4 dark:border-slate-800">
                 {timeline.slice(0, 10).map((e, idx) => (
                   <li key={idx} className="relative text-sm">
-                    <span className="absolute -left-[21px] mt-1 h-2 w-2 rounded-full bg-slate-300" />
-                    <p className="text-xs font-medium text-slate-400">{formatDate(e.date)}</p>
-                    <p className="text-slate-700">{e.label}</p>
+                    <span className="absolute -left-[21px] mt-1 h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" />
+                    <p className="text-xs font-medium text-slate-400 dark:text-slate-500">{formatDate(e.date)}</p>
+                    <p className="text-slate-700 dark:text-slate-300">{e.label}</p>
                   </li>
                 ))}
               </ol>
@@ -256,23 +256,23 @@ export function CustomerDrawer({
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</p>;
+  return <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{children}</p>;
 }
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="text-slate-700">{value}</dd>
+      <dt className="text-xs text-slate-400 dark:text-slate-500">{label}</dt>
+      <dd className="text-slate-700 dark:text-slate-200">{value}</dd>
     </div>
   );
 }
 
 function SummaryTile({ label, value, tone }: { label: string; value: string; tone?: "rose" }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className={`mt-1 text-base font-semibold ${tone === "rose" ? "text-rose-600" : "text-slate-800"}`}>{value}</p>
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+      <p className="text-xs text-slate-400 dark:text-slate-500">{label}</p>
+      <p className={`mt-1 text-base font-semibold ${tone === "rose" ? "text-rose-600 dark:text-rose-400" : "text-slate-800 dark:text-slate-100"}`}>{value}</p>
     </div>
   );
 }
@@ -282,7 +282,7 @@ function ActionButton({ children, onClick, primary }: { children: React.ReactNod
     <button
       onClick={onClick}
       className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-        primary ? "bg-brand text-white hover:bg-brand-dark" : "border border-slate-300 text-slate-700 hover:bg-slate-100"
+        primary ? "bg-brand text-white hover:bg-brand-dark" : "border border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
       }`}
     >
       {children}
@@ -292,7 +292,7 @@ function ActionButton({ children, onClick, primary }: { children: React.ReactNod
 
 function DisabledLinkButton({ label, note }: { label: string; note: string }) {
   return (
-    <button disabled title={note} className="cursor-not-allowed rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400">
+    <button disabled title={note} className="cursor-not-allowed rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-400 dark:border-slate-800 dark:text-slate-500">
       {label}
     </button>
   );
@@ -381,7 +381,7 @@ function SendReminderModal({
   return (
     <ModalShell title="Send Reminder" onClose={onClose}>
       {invoices.length === 0 ? (
-        <p className="text-sm text-slate-500">No open invoices to remind this customer about.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">No open invoices to remind this customer about.</p>
       ) : (
         <div className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-3">
@@ -402,12 +402,12 @@ function SendReminderModal({
           <FormField label="Body">
             <textarea className={`${inputClass} min-h-[160px] font-mono text-xs`} value={body} onChange={(e) => setBody(e.target.value)} />
           </FormField>
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <p className="text-xs text-slate-400">
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          <p className="text-xs text-slate-400 dark:text-slate-500">
             This simulates sending — it writes a "sent" record to the reminder log, no real email goes out.
           </p>
           <div className="flex justify-end gap-2">
-            <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
             <button onClick={handleSend} disabled={sending} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
               {sending ? "Sending…" : "Send"}
             </button>
@@ -456,7 +456,7 @@ function FollowUpModal({
   return (
     <ModalShell title="Record Follow-up" onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
           Kept for this browser session only — there is no follow-up table in the database yet, so this is not saved to Supabase.
         </p>
         <div className="grid grid-cols-2 gap-3">
@@ -484,7 +484,7 @@ function FollowUpModal({
           </FormField>
         </div>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
           <button onClick={handleSave} disabled={!contactedPerson || !outcome} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
             Save follow-up
           </button>
@@ -530,11 +530,11 @@ function PromiseToPayModal({
   return (
     <ModalShell title="Record Promise to Pay" onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
           Kept for this browser session only — there is no promise-to-pay table in the database yet, so this is not saved to Supabase.
         </p>
         {previous && (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50 text-xs text-slate-600 dark:text-slate-300">
             Previous commitment: {formatCurrency(previous.amount)} by {formatDate(previous.promiseDate)}, from {previous.personCommitting}
             {previous.remarks && ` — "${previous.remarks}"`}
           </div>
@@ -554,7 +554,7 @@ function PromiseToPayModal({
           <textarea className={`${inputClass} min-h-[80px]`} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
         </FormField>
         <div className="flex justify-end gap-2">
-          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button onClick={onClose} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Cancel</button>
           <button onClick={handleSave} disabled={!personCommitting || !amount} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50">
             Save commitment
           </button>
@@ -567,11 +567,11 @@ function PromiseToPayModal({
 function ModalShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-slate-900/40" />
-      <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-slate-900/40 dark:bg-black/60" />
+      <div className="relative w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-slate-900 dark:shadow-black/50">
         <div className="mb-4 flex items-center justify-between">
-          <h4 className="text-lg font-bold text-slate-900">{title}</h4>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100">✕</button>
+          <h4 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h4>
+          <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800">✕</button>
         </div>
         {children}
       </div>

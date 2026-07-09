@@ -236,18 +236,18 @@ export default function CollectionsWorkspacePage() {
       <PageHeader title="Customer Collections Workspace" subtitle="Overdue customers, invoices, and follow-up in one place." />
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">Loading collections data…</div>
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">Loading collections data…</div>
       ) : error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</div>
       ) : (
         <>
-          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
             Follow-up and Promise-to-Pay entries you add below are kept only in this browser tab for this session —
             the database has no table for them yet, so they are not saved to Supabase and will reset on refresh.
           </p>
 
           {/* KPI cards */}
-          <div className="sticky top-0 z-10 -mx-8 mb-6 grid grid-cols-2 gap-3 bg-slate-50 px-8 pb-4 pt-1 sm:grid-cols-4 lg:grid-cols-7">
+          <div className="sticky top-0 z-10 -mx-8 mb-6 grid grid-cols-2 gap-3 bg-slate-50 px-8 pb-4 pt-1 dark:bg-slate-950 sm:grid-cols-4 lg:grid-cols-7">
             <Kpi label="Due today" value={String(kpis.dueToday)} />
             <Kpi label="Total outstanding" value={formatCurrency(kpis.totalOutstanding)} />
             <Kpi label="Total overdue" value={formatCurrency(kpis.totalOverdue)} tone="rose" />
@@ -266,7 +266,7 @@ export default function CollectionsWorkspacePage() {
                 setPage(1);
               }}
               placeholder="Search customer, code, or contact…"
-              className="w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              className="w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
             />
             <select
               value={statusFilter}
@@ -274,7 +274,7 @@ export default function CollectionsWorkspacePage() {
                 setStatusFilter(e.target.value as "all" | CollectionStatus);
                 setPage(1);
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
             >
               <option value="all">All statuses</option>
               {(Object.keys(STATUS_TONE) as CollectionStatus[]).map((s) => (
@@ -287,14 +287,14 @@ export default function CollectionsWorkspacePage() {
                 setPriorityFilter(e.target.value as "all" | Priority);
                 setPage(1);
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
             >
               <option value="all">All priorities</option>
               <option value="High">High</option>
               <option value="Medium">Medium</option>
               <option value="Low">Low</option>
             </select>
-            <span className="text-sm text-slate-400">{filtered.length} customer{filtered.length === 1 ? "" : "s"}</span>
+            <span className="text-sm text-slate-400 dark:text-slate-500">{filtered.length} customer{filtered.length === 1 ? "" : "s"}</span>
           </div>
 
           <div className="[&_thead]:sticky [&_thead]:top-0">
@@ -338,9 +338,9 @@ export default function CollectionsWorkspacePage() {
 
 function Kpi({ label, value, tone }: { label: string; value: string; tone?: "rose" | "emerald" }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className={`mt-1 text-lg font-bold ${tone === "rose" ? "text-rose-600" : tone === "emerald" ? "text-emerald-600" : "text-slate-900"}`}>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <p className="text-xs text-slate-400 dark:text-slate-500">{label}</p>
+      <p className={`mt-1 text-lg font-bold ${tone === "rose" ? "text-rose-600 dark:text-rose-400" : tone === "emerald" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
         {value}
       </p>
     </div>

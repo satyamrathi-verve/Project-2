@@ -115,17 +115,17 @@ export default function ReminderTemplatePage() {
       />
 
       {loading ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           Loading template…
         </div>
       ) : !selected ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
           No reminder templates found yet.
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Form */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
             {templates.length > 1 && (
               <div className="mb-4">
                 <FormField label="Template">
@@ -169,25 +169,25 @@ export default function ReminderTemplatePage() {
             </div>
 
             {/* Placeholder legend */}
-            <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <div className="mt-5 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Placeholders you can use
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {PLACEHOLDERS.map((p) => (
                   <span
                     key={p.token}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   >
-                    <code className="font-mono text-brand">{p.token}</code>
-                    <span className="text-slate-400">— {p.label}</span>
+                    <code className="font-mono text-brand dark:text-blue-300">{p.token}</code>
+                    <span className="text-slate-400 dark:text-slate-500">— {p.label}</span>
                   </span>
                 ))}
               </div>
             </div>
 
             {error && (
-              <p className="mt-4 text-sm text-red-600">{error}</p>
+              <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
             )}
 
             <div className="mt-5 flex items-center gap-3">
@@ -199,31 +199,31 @@ export default function ReminderTemplatePage() {
                 {saving ? "Saving…" : "Save template"}
               </button>
               {saved && (
-                <span className="text-sm text-emerald-600">Saved.</span>
+                <span className="text-sm text-emerald-600 dark:text-emerald-400">Saved.</span>
               )}
             </div>
           </div>
 
           {/* Live preview */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               Live preview
             </p>
-            <p className="mt-1 text-xs text-slate-400">
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               Shown with sample values — not sent to anyone.
             </p>
 
-            <div className="mt-4 rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">Subject</p>
-                <p className="mt-0.5 text-sm font-medium text-slate-800">
-                  {fillTemplate(subject) || <span className="text-slate-300">(empty)</span>}
+            <div className="mt-4 rounded-lg border border-slate-200 dark:border-slate-800">
+              <div className="border-b border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+                <p className="text-xs text-slate-400 dark:text-slate-500">Subject</p>
+                <p className="mt-0.5 text-sm font-medium text-slate-800 dark:text-slate-100">
+                  {fillTemplate(subject) || <span className="text-slate-300 dark:text-slate-600">(empty)</span>}
                 </p>
               </div>
               <div className="px-4 py-4">
-                <p className="text-xs text-slate-400">Body</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">
-                  {fillTemplate(body) || <span className="text-slate-300">(empty)</span>}
+                <p className="text-xs text-slate-400 dark:text-slate-500">Body</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
+                  {fillTemplate(body) || <span className="text-slate-300 dark:text-slate-600">(empty)</span>}
                 </p>
               </div>
             </div>
