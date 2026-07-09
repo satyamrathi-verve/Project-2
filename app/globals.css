@@ -19,3 +19,22 @@ body {
 .themed {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease;
 }
+
+/* Print-friendly reports: hide the sidebar and anything marked .no-print,
+   let content take the full page. Used by the Customer Statement report. */
+@media print {
+  nav {
+    display: none !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  main {
+    height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  body {
+    background: white !important;
+  }
+}
