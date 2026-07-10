@@ -207,7 +207,7 @@ export function EmailPreviewPanel({
                   <p className="text-slate-300">(empty)</p>
                 )}
                 {primary && (
-                  <div className="mt-4 grid grid-cols-3 gap-3 rounded-lg bg-slate-50 p-3 text-center dark:bg-slate-800/60">
+                  <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 text-center dark:bg-slate-800/60 sm:grid-cols-3">
                     <div>
                       <p className="text-[10px] uppercase tracking-wide text-slate-400">Outstanding</p>
                       <p className="mt-0.5 text-sm font-bold text-slate-900 dark:text-white">

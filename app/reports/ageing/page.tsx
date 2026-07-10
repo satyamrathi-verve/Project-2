@@ -6,7 +6,7 @@ import { NotConfigured } from "@/components/NotConfigured";
 import { PageHeader } from "@/components/PageHeader";
 import { FormField, inputClass } from "@/components/FormField";
 import { DataTable, type Column } from "@/components/DataTable";
-import { Card } from "@/components/ui";
+import { Card, inrCompact } from "@/components/ui";
 import type { Customer, Invoice, ReceiptAllocation } from "@/lib/types";
 import {
   BUCKET_LABELS,
@@ -492,15 +492,17 @@ export default function ARAgeingPage() {
         </div>
       ) : (
         <>
-          {/* KPI cards */}
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-            <KpiCard label="Total Outstanding" value={formatINR(kpis.totalOutstanding)} />
-            <KpiCard label="Current / Not Due" value={formatINR(kpis.buckets.not_due)} />
-            <KpiCard label="Total Overdue" value={formatINR(kpis.totalOverdue)} emphasis />
-            <KpiCard label="1–30 Days" value={formatINR(kpis.buckets.d1_30)} />
-            <KpiCard label="31–60 Days" value={formatINR(kpis.buckets.d31_60)} />
-            <KpiCard label="61–90 Days" value={formatINR(kpis.buckets.d61_90)} />
-            <KpiCard label="Above 90 Days" value={formatINR(kpis.buckets.d90_plus)} emphasis />
+          {/* KPI cards. Base 2-up on mobile, 4-up on laptop (1024), 8-in-a-row
+              only from xl (1280, "Desktop") up — matches Tablet/Laptop/Desktop
+              layouts called for in the spec instead of jumping to 8 too early. */}
+          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-6 xl:grid-cols-8">
+            <KpiCard label="Total Outstanding" value={inrCompact(kpis.totalOutstanding)} title={formatINR(kpis.totalOutstanding)} />
+            <KpiCard label="Current / Not Due" value={inrCompact(kpis.buckets.not_due)} title={formatINR(kpis.buckets.not_due)} />
+            <KpiCard label="Total Overdue" value={inrCompact(kpis.totalOverdue)} title={formatINR(kpis.totalOverdue)} emphasis />
+            <KpiCard label="1–30 Days" value={inrCompact(kpis.buckets.d1_30)} title={formatINR(kpis.buckets.d1_30)} />
+            <KpiCard label="31–60 Days" value={inrCompact(kpis.buckets.d31_60)} title={formatINR(kpis.buckets.d31_60)} />
+            <KpiCard label="61–90 Days" value={inrCompact(kpis.buckets.d61_90)} title={formatINR(kpis.buckets.d61_90)} />
+            <KpiCard label="Above 90 Days" value={inrCompact(kpis.buckets.d90_plus)} title={formatINR(kpis.buckets.d90_plus)} emphasis />
             <KpiCard label="Overdue Customers" value={String(kpis.overdueCustomers)} />
             <FollowUpStatusCard counts={followUpStatus} />
           </div>
@@ -574,11 +576,16 @@ export default function ARAgeingPage() {
   );
 }
 
-function KpiCard({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
+function KpiCard({ label, value, title, emphasis }: { label: string; value: string; title?: string; emphasis?: boolean }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold ${emphasis ? "text-red-600" : "text-slate-900"}`}>{value}</p>
+    <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{label}</p>
+      <p
+        title={title}
+        className={`mt-1 truncate text-lg font-bold ${emphasis ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -593,18 +600,18 @@ const FOLLOW_UP_ROWS: { key: keyof FollowUpStatusCounts; label: string; dot: str
 /** Compact summary card, same border/padding/typography as the KPI tiles beside it. */
 function FollowUpStatusCard({ counts }: { counts: FollowUpStatusCounts }) {
   return (
-    <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Follow-up Status</p>
+    <div className="col-span-2 min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Follow-up Status</p>
       <div className="mt-2 flex flex-col gap-1.5">
         {FOLLOW_UP_ROWS.map((row) => {
           const value = counts[row.key];
           return (
             <div key={row.key} className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex items-center gap-2 text-slate-600">
+              <span className="flex min-w-0 items-center gap-2 truncate text-slate-600 dark:text-slate-300">
                 <span className={`h-2 w-2 flex-none rounded-full ${row.dot}`} />
                 {row.label}
               </span>
-              <span className={`font-semibold ${value === null ? "text-slate-400" : "text-slate-900"}`}>
+              <span className={`flex-none font-semibold ${value === null ? "text-slate-400 dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>
                 {value === null ? "Not Available" : value}
               </span>
             </div>

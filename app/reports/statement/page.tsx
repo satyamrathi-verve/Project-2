@@ -56,9 +56,9 @@ function CollectionStatusBadge({ status }: { status: CollectionStatus }) {
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</p>
-      <p className="mt-0.5 text-sm text-slate-700 dark:text-slate-200">{value}</p>
+      <p className="mt-0.5 break-words text-sm text-slate-700 dark:text-slate-200">{value}</p>
     </div>
   );
 }
@@ -440,7 +440,7 @@ export default function CustomerStatementPage() {
                   <div className="min-w-0 space-y-1">
                     <p className="text-lg font-bold text-slate-900 dark:text-white">{selectedCustomer.name}</p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">Code: {selectedCustomer.code}</p>
-                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div className="mt-2 grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2">
                       <InfoItem label="GSTIN" value={selectedCustomer.gstin || "—"} />
                       <InfoItem label="PAN" value={selectedCustomer.pan || "—"} />
                       <InfoItem label="Contact Person" value={selectedCustomer.contact_person || "—"} />
@@ -458,7 +458,7 @@ export default function CustomerStatementPage() {
                     </div>
                     <CollectionStatusBadge status={financials.collectionStatus} />
                   </div>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
                     <InfoItem label="Overdue Amount" value={inr(financials.overdueAmount)} />
                     <InfoItem label="Current Balance" value={inr(financials.currentBalance)} />
                     <InfoItem label="Last Payment Date" value={formatDate(financials.lastPaymentDate)} />

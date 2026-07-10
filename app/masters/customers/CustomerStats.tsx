@@ -117,32 +117,34 @@ export function CustomerStats({ customers }: { customers: Customer[] }) {
           ) : top5.length === 0 ? (
             <p className="px-6 py-5 text-sm text-slate-400 dark:text-slate-500">No customers yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  <th className="px-6 py-2.5">#</th>
-                  <th className="px-2 py-2.5">Code</th>
-                  <th className="px-2 py-2.5">Name</th>
-                  <th className="px-2 py-2.5 text-right">Total Turnover</th>
-                  <th className="px-6 py-2.5 text-right">Credit Limit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {top5.map(({ customer: c, transactionTotal }, i) => (
-                  <tr key={c.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
-                    <td className="px-6 py-2.5 text-slate-400 dark:text-slate-500">{i + 1}</td>
-                    <td className="px-2 py-2.5 font-medium text-slate-900 dark:text-white">{c.code}</td>
-                    <td className="max-w-[160px] truncate px-2 py-2.5 text-slate-700 dark:text-slate-300">{c.name}</td>
-                    <td className="px-2 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                      {currency.format(transactionTotal)}
-                    </td>
-                    <td className="px-6 py-2.5 text-right tabular-nums text-slate-500 dark:text-slate-400">
-                      {currency.format(c.credit_limit ?? 0)}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                    <th className="px-6 py-2.5">#</th>
+                    <th className="px-2 py-2.5">Code</th>
+                    <th className="px-2 py-2.5">Name</th>
+                    <th className="px-2 py-2.5 text-right">Total Turnover</th>
+                    <th className="px-6 py-2.5 text-right">Credit Limit</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {top5.map(({ customer: c, transactionTotal }, i) => (
+                    <tr key={c.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+                      <td className="px-6 py-2.5 text-slate-400 dark:text-slate-500">{i + 1}</td>
+                      <td className="px-2 py-2.5 font-medium text-slate-900 dark:text-white">{c.code}</td>
+                      <td className="max-w-[160px] truncate px-2 py-2.5 text-slate-700 dark:text-slate-300">{c.name}</td>
+                      <td className="px-2 py-2.5 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                        {currency.format(transactionTotal)}
+                      </td>
+                      <td className="px-6 py-2.5 text-right tabular-nums text-slate-500 dark:text-slate-400">
+                        {currency.format(c.credit_limit ?? 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
 
@@ -151,37 +153,39 @@ export function CustomerStats({ customers }: { customers: Customer[] }) {
           {recent5.length === 0 ? (
             <p className="px-6 py-5 text-sm text-slate-400 dark:text-slate-500">No customers yet.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  <th className="px-6 py-2.5">Code</th>
-                  <th className="px-2 py-2.5">Name</th>
-                  <th className="px-2 py-2.5">Contact</th>
-                  <th className="px-2 py-2.5">Email</th>
-                  <th className="px-6 py-2.5 text-right">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recent5.map((c) => (
-                  <tr key={c.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
-                    <td className="px-6 py-2.5 font-medium text-slate-900 dark:text-white">{c.code}</td>
-                    <td className="max-w-[140px] truncate px-2 py-2.5 text-slate-700 dark:text-slate-300">{c.name}</td>
-                    <td className="max-w-[120px] truncate px-2 py-2.5 text-slate-500 dark:text-slate-400">
-                      {c.contact_person || "—"}
-                    </td>
-                    <td className="max-w-[140px] truncate px-2 py-2.5 text-slate-500 dark:text-slate-400">
-                      {c.email || "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-2.5 text-right text-slate-500 dark:text-slate-400">
-                      <span className="inline-flex items-center gap-1">
-                        <IconCalendar className="h-3 w-3 text-slate-400 dark:text-slate-500" />
-                        {formatCreatedDate(c.created_at)}
-                      </span>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                    <th className="px-6 py-2.5">Code</th>
+                    <th className="px-2 py-2.5">Name</th>
+                    <th className="px-2 py-2.5">Contact</th>
+                    <th className="px-2 py-2.5">Email</th>
+                    <th className="px-6 py-2.5 text-right">Created</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {recent5.map((c) => (
+                    <tr key={c.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+                      <td className="px-6 py-2.5 font-medium text-slate-900 dark:text-white">{c.code}</td>
+                      <td className="max-w-[140px] truncate px-2 py-2.5 text-slate-700 dark:text-slate-300">{c.name}</td>
+                      <td className="max-w-[120px] truncate px-2 py-2.5 text-slate-500 dark:text-slate-400">
+                        {c.contact_person || "—"}
+                      </td>
+                      <td className="max-w-[140px] truncate px-2 py-2.5 text-slate-500 dark:text-slate-400">
+                        {c.email || "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-2.5 text-right text-slate-500 dark:text-slate-400">
+                        <span className="inline-flex items-center gap-1">
+                          <IconCalendar className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                          {formatCreatedDate(c.created_at)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
       </div>

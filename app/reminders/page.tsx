@@ -668,7 +668,11 @@ export default function AutoEmailShootPage() {
   }
 
   return (
-    <>
+    // overflow-x-hidden confines this page to the viewport width — the wide
+    // customer table still scrolls horizontally within its own DataTable
+    // wrapper (which has its own overflow-x-auto), it just can no longer
+    // push the whole screen sideways.
+    <div className="overflow-x-hidden">
       <PageHeader title="AR Follow-up – Auto Email Shoot" subtitle="Chase overdue customers with personalised reminder emails." />
 
       {!loading && !error && candidates.length > 0 && (
@@ -734,7 +738,7 @@ export default function AutoEmailShootPage() {
             />
           </div>
 
-          <div className="mb-6 flex flex-nowrap items-end gap-3 overflow-x-auto rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-6 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex flex-none flex-col gap-1">
                   <label className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Search</label>
                   <input
@@ -876,7 +880,11 @@ export default function AutoEmailShootPage() {
               </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="space-y-4 lg:col-span-2">
+            {/* min-w-0: grid items default to min-width:auto, which refuses to
+                shrink below the table's natural content width and was
+                stretching the whole main content area sideways instead of
+                letting the table's own overflow-x-auto scroll it. */}
+            <div className="min-w-0 space-y-4 lg:col-span-2">
               <DataTable
                 columns={columns}
                 rows={rows}
@@ -981,6 +989,6 @@ export default function AutoEmailShootPage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

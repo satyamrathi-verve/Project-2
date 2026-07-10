@@ -137,8 +137,11 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
 
       {/* The document itself. */}
       <div className="mx-auto max-w-[210mm] rounded-xl border border-slate-200 bg-white p-10 text-slate-800 shadow-sm print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
-        {/* Header: company + document meta */}
-        <div className="flex items-start justify-between gap-6 border-b border-slate-200 pb-6">
+        {/* Header: company + document meta. Stacks on-screen at mobile
+            widths (this page is a real screen users view before printing);
+            always side-by-side once actually printed, regardless of the
+            device that triggered the print. */}
+        <div className="flex flex-col gap-6 border-b border-slate-200 pb-6 sm:flex-row sm:items-start sm:justify-between print:flex-row print:items-start print:justify-between">
           <div className="flex gap-4">
             <div className="flex h-14 w-14 flex-none items-center justify-center rounded-lg bg-brand/10 text-xl font-bold text-brand">
               {(company?.name ?? "?").charAt(0).toUpperCase()}
@@ -152,7 +155,7 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
               </p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right print:text-right">
             <p className="text-sm font-semibold uppercase tracking-widest text-brand">Tax Invoice</p>
             <p className="mt-2 text-sm text-slate-500">
               Invoice No. <span className="font-medium text-slate-800">{invoice.invoice_no}</span>
@@ -163,7 +166,7 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
             <p className="text-sm text-slate-500">
               Due Date <span className="font-medium text-slate-800">{formatDate(invoice.due_date)}</span>
             </p>
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex justify-start sm:justify-end print:justify-end">
               <StatusBadge status={invoice.status} />
             </div>
           </div>
@@ -193,7 +196,8 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
         </div>
 
         {/* Line items */}
-        <table className="mt-6 w-full text-sm">
+        <div className="mt-6 overflow-x-auto print:overflow-visible">
+        <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-300 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <th className="w-12 py-2">Sr.</th>
@@ -223,6 +227,7 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
             )}
           </tbody>
         </table>
+        </div>
 
         {/* Tax summary + amount summary */}
         <div className="mt-6 flex flex-col gap-6 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between">
@@ -280,7 +285,7 @@ export default function InvoicePrintPage({ params }: { params: { id: string } })
         )}
 
         {/* Footer */}
-        <div className="mt-10 flex items-end justify-between border-t border-slate-200 pt-6">
+        <div className="mt-10 flex flex-col gap-4 border-t border-slate-200 pt-6 sm:flex-row sm:items-end sm:justify-between print:flex-row print:items-end print:justify-between">
           <p className="text-xs text-slate-400">This is a system-generated invoice.</p>
           <div className="text-center text-sm text-slate-600">
             <p className="mb-8">For {company?.name ?? "the company"}</p>

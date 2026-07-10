@@ -308,7 +308,7 @@ function StatusDonut({
   let acc = 0;
 
   return (
-    <div className="flex items-center gap-6">
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
       <svg viewBox="0 0 140 140" className="h-36 w-36 flex-none">
         {slices
           .filter((s) => s.count > 0)
@@ -811,7 +811,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="animate-fade-in themed flex items-center gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+            <div className="animate-fade-in themed flex flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:flex-row sm:items-center sm:gap-5 sm:text-left">
               <ScoreGauge health={m.health} dark={dark} />
               <div className="min-w-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">AR Health Score</p>

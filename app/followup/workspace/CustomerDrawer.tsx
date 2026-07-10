@@ -113,7 +113,7 @@ export function CustomerDrawer({
           {/* Customer info */}
           <section>
             <SectionTitle>Customer information</SectionTitle>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
               <Field label="Contact person" value={customer.contact_person ?? "—"} />
               <Field label="Email" value={customer.email ?? "—"} />
               <Field label="Phone" value={customer.phone ?? "—"} />
@@ -126,7 +126,7 @@ export function CustomerDrawer({
           {/* Outstanding summary */}
           <section>
             <SectionTitle>Outstanding summary</SectionTitle>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SummaryTile label="Total outstanding" value={formatCurrency(aggregate.outstanding)} />
               <SummaryTile label="Current (not due)" value={formatCurrency(aggregate.currentDue)} />
               <SummaryTile label="Overdue" value={formatCurrency(aggregate.overdue)} tone="rose" />
@@ -142,7 +142,7 @@ export function CustomerDrawer({
           </section>
 
           {(lastFollowUp || latestPromise) && (
-            <section className="grid grid-cols-2 gap-3 text-sm">
+            <section className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               {lastFollowUp && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Last follow-up</p>
@@ -164,6 +164,7 @@ export function CustomerDrawer({
           <section>
             <SectionTitle>Invoices</SectionTitle>
             <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
@@ -202,6 +203,7 @@ export function CustomerDrawer({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           </section>
 
@@ -384,7 +386,7 @@ function SendReminderModal({
         <p className="text-sm text-slate-500 dark:text-slate-400">No open invoices to remind this customer about.</p>
       ) : (
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <FormField label="Template">
               <select className={inputClass} value={templateId} onChange={(e) => { setTemplateId(e.target.value); setInitialised(false); }}>
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -459,7 +461,7 @@ function FollowUpModal({
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
           Kept for this browser session only — there is no follow-up table in the database yet, so this is not saved to Supabase.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Follow-up date">
             <input type="date" className={inputClass} value={date} onChange={(e) => setDate(e.target.value)} />
           </FormField>
@@ -475,7 +477,7 @@ function FollowUpModal({
         <FormField label="Discussion summary">
           <textarea className={`${inputClass} min-h-[100px]`} value={summary} onChange={(e) => setSummary(e.target.value)} />
         </FormField>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Outcome">
             <input className={inputClass} value={outcome} onChange={(e) => setOutcome(e.target.value)} placeholder="e.g. Payment promised" />
           </FormField>
@@ -539,7 +541,7 @@ function PromiseToPayModal({
             {previous.remarks && ` — "${previous.remarks}"`}
           </div>
         )}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <FormField label="Promise amount">
             <input type="number" className={inputClass} value={amount} onChange={(e) => setAmount(e.target.value)} />
           </FormField>

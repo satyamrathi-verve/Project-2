@@ -362,12 +362,12 @@ export function Card({
   return (
     <section className={cx("themed rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none", className)}>
       {(title || action) && (
-        <header className="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <div>
+        <header className="flex flex-col gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             {title && <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>}
             {subtitle && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
           </div>
-          {action && <div className="flex-none">{action}</div>}
+          {action && <div className="flex flex-wrap items-center gap-2 sm:flex-none">{action}</div>}
         </header>
       )}
       <div className={cx("p-6", bodyClassName)}>{children}</div>

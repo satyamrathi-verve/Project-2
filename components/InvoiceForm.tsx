@@ -417,8 +417,13 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
           </button>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <div className="grid grid-cols-[1fr_90px_110px_120px_36px] gap-2 px-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {/* Fixed pixel columns (Qty/Rate/Amount/delete) don't reflow on narrow
+            screens — scroll horizontally instead of breaking the page, same
+            treatment as every data table in the app. Desktop is unaffected
+            since min-w only kicks in once the container would otherwise
+            shrink below it. */}
+        <div className="flex flex-col gap-2 overflow-x-auto">
+          <div className="grid min-w-[600px] grid-cols-[1fr_90px_110px_120px_36px] gap-2 px-1 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
             <span>Description</span>
             <span>Qty</span>
             <span>Rate (₹)</span>
@@ -428,7 +433,7 @@ export function InvoiceForm({ invoiceId }: { invoiceId?: string }) {
           {items.map((it) => {
             const amount = (Number(it.qty) || 0) * (Number(it.rate) || 0);
             return (
-              <div key={it.key} className="grid grid-cols-[1fr_90px_110px_120px_36px] items-center gap-2">
+              <div key={it.key} className="grid min-w-[600px] grid-cols-[1fr_90px_110px_120px_36px] items-center gap-2">
                 <input
                   className={inputClass}
                   value={it.description}

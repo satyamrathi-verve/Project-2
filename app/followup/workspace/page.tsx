@@ -246,8 +246,10 @@ export default function CollectionsWorkspacePage() {
             the database has no table for them yet, so they are not saved to Supabase and will reset on refresh.
           </p>
 
-          {/* KPI cards */}
-          <div className="sticky top-0 z-10 -mx-8 mb-6 grid grid-cols-2 gap-3 bg-slate-50 px-8 pb-4 pt-1 dark:bg-slate-950 sm:grid-cols-4 lg:grid-cols-7">
+          {/* KPI cards. Sticky + full-bleed only from md up (matches AppShell's
+              md:p-8 main padding) — below md they sit in normal page flow so
+              they can never cover the table on a short mobile viewport. */}
+          <div className="-mx-4 mb-6 grid grid-cols-2 gap-3 bg-slate-50 px-4 pb-4 pt-1 dark:bg-slate-950 sm:grid-cols-4 md:sticky md:top-0 md:z-10 md:-mx-8 md:px-8 lg:grid-cols-7">
             <Kpi label="Due today" value={String(kpis.dueToday)} />
             <Kpi label="Total outstanding" value={formatCurrency(kpis.totalOutstanding)} />
             <Kpi label="Total overdue" value={formatCurrency(kpis.totalOverdue)} tone="rose" />
@@ -257,8 +259,8 @@ export default function CollectionsWorkspacePage() {
             <Kpi label="Expected today" value={formatCurrency(kpis.expectedToday)} tone="emerald" />
           </div>
 
-          {/* Filters */}
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          {/* Filters: stack on mobile, wrap on tablet, single row on desktop. */}
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <input
               value={search}
               onChange={(e) => {
@@ -266,7 +268,7 @@ export default function CollectionsWorkspacePage() {
                 setPage(1);
               }}
               placeholder="Search customer, code, or contact…"
-              className="w-64 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 sm:w-64"
             />
             <select
               value={statusFilter}
@@ -274,7 +276,7 @@ export default function CollectionsWorkspacePage() {
                 setStatusFilter(e.target.value as "all" | CollectionStatus);
                 setPage(1);
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark] sm:w-auto"
             >
               <option value="all">All statuses</option>
               {(Object.keys(STATUS_TONE) as CollectionStatus[]).map((s) => (
@@ -287,7 +289,7 @@ export default function CollectionsWorkspacePage() {
                 setPriorityFilter(e.target.value as "all" | Priority);
                 setPage(1);
               }}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark] sm:w-auto"
             >
               <option value="all">All priorities</option>
               <option value="High">High</option>

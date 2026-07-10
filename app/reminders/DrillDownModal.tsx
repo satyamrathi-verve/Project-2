@@ -113,7 +113,7 @@ export function DrillDownModal<T extends { id: string }>({
               setPage(1);
             }}
             placeholder={searchPlaceholder}
-            className={`${inputClass} w-64`}
+            className={`${inputClass} w-full sm:w-64`}
           />
           <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
             {filtered.length} record{filtered.length === 1 ? "" : "s"}

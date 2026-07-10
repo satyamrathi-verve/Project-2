@@ -557,6 +557,7 @@ export default function UploadReportPage() {
 
             {result.skipped.length > 0 && (
               <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50 text-left dark:border-slate-800 dark:bg-slate-800/60">
@@ -575,6 +576,7 @@ export default function UploadReportPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
 
