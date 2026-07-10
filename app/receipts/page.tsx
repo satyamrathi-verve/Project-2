@@ -8,6 +8,9 @@ import type { Customer, Receipt } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
 import { ColumnFilterMenu } from "@/components/ColumnFilter";
+import { Pagination } from "@/components/Pagination";
+import { ImportReceiptsModal } from "./ImportReceiptsModal";
+import { exportReceiptsCsv, exportReceiptsXlsx, downloadReceiptSample, type ReceiptExportRow } from "@/lib/receiptIO";
 import { useTableSort } from "@/lib/useTableSort";
 import { sortRows, type SortColumn } from "@/lib/sortRows";
 import { NotConfigured } from "@/components/NotConfigured";
@@ -71,6 +74,7 @@ const COLUMN_DEFS: { key: ColKey; label: string }[] = [
 ];
 
 const COLS_STORAGE_KEY = "receipts.visibleColumns.v1";
+const PAGE_SIZE = 10;
 
 // The display value used for a column's per-header value filter — both the
 // checklist of distinct options and the row test compare against this string.
@@ -96,10 +100,14 @@ function cellValue(key: ColKey, r: ReceiptRow): string {
 export default function ReceiptListPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ReceiptRow[]>([]);
+  const [customers, setCustomers] = useState<Pick<Customer, "id" | "code" | "name">[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Column-header sort state. Sorting is driven entirely from the per-column
   // filter popups (Sort ascending / descending), applied in the `visible` memo.
@@ -127,44 +135,56 @@ export default function ReceiptListPage() {
     COLS_STORAGE_KEY
   );
 
-  useEffect(() => {
+  // Extracted so the import modal can refresh the list after inserting rows.
+  const loadData = useCallback(async () => {
     if (!isConfigured || !supabase) {
       setLoading(false);
       return;
     }
-    (async () => {
-      setLoading(true);
-      const [{ data: receipts, error: e1 }, { data: customers, error: e2 }, { data: allocs, error: e3 }] =
-        await Promise.all([
-          supabase!.from("receipts").select("*").order("receipt_date", { ascending: false }),
-          supabase!.from("customers").select("id, code, name"),
-          supabase!.from("receipt_allocations").select("receipt_id, amount"),
-        ]);
-      if (e1 || e2 || e3) {
-        setError((e1 || e2 || e3)!.message);
-        setLoading(false);
-        return;
-      }
-      const custMap = new Map((customers as Pick<Customer, "id" | "code" | "name">[]).map((c) => [c.id, c]));
-      const allocMap: Record<string, number> = {};
-      for (const a of (allocs as { receipt_id: string; amount: number }[]) ?? []) {
-        allocMap[a.receipt_id] = (allocMap[a.receipt_id] ?? 0) + Number(a.amount);
-      }
-      const built: ReceiptRow[] = (receipts as Receipt[]).map((r) => {
-        const cust = custMap.get(r.customer_id);
-        const allocated = allocMap[r.id] ?? 0;
-        return {
-          ...r,
-          customerName: cust?.name ?? "Unknown customer",
-          customerCode: cust?.code ?? "—",
-          allocated,
-          unallocated: Number(r.amount) - allocated,
-        };
-      });
-      setRows(built);
+    setLoading(true);
+    const [{ data: receipts, error: e1 }, { data: custData, error: e2 }, { data: allocs, error: e3 }] =
+      await Promise.all([
+        supabase!.from("receipts").select("*").order("receipt_date", { ascending: false }),
+        supabase!.from("customers").select("id, code, name"),
+        supabase!.from("receipt_allocations").select("receipt_id, amount"),
+      ]);
+    if (e1 || e2 || e3) {
+      setError((e1 || e2 || e3)!.message);
       setLoading(false);
-    })();
+      return;
+    }
+    const custList = (custData as Pick<Customer, "id" | "code" | "name">[]) ?? [];
+    setCustomers(custList);
+    const custMap = new Map(custList.map((c) => [c.id, c]));
+    const allocMap: Record<string, number> = {};
+    for (const a of (allocs as { receipt_id: string; amount: number }[]) ?? []) {
+      allocMap[a.receipt_id] = (allocMap[a.receipt_id] ?? 0) + Number(a.amount);
+    }
+    const built: ReceiptRow[] = (receipts as Receipt[]).map((r) => {
+      const cust = custMap.get(r.customer_id);
+      const allocated = allocMap[r.id] ?? 0;
+      return {
+        ...r,
+        customerName: cust?.name ?? "Unknown customer",
+        customerCode: cust?.code ?? "—",
+        allocated,
+        unallocated: Number(r.amount) - allocated,
+      };
+    });
+    setRows(built);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Lookups the import flow needs: customer code -> {id, name} and existing receipt numbers.
+  const customerByCode = useMemo(
+    () => new Map(customers.map((c) => [c.code.toLowerCase(), { id: c.id, name: c.name }])),
+    [customers]
+  );
+  const existingReceiptNos = useMemo(() => new Set(rows.map((r) => r.receipt_no.toLowerCase())), [rows]);
 
   // ---- KPIs ----------------------------------------------------------------
   const kpis = useMemo(() => {
@@ -218,6 +238,34 @@ export default function ReceiptListPage() {
     });
     return sortRows(filtered, columnSort, RECEIPT_SORT_COLUMNS);
   }, [rows, search, colFilters, columnSort]);
+
+  // ---- pagination (client-side, over the filtered + sorted rows) ----------
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const paged = visible.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Back to page 1 whenever the filter/search narrows the set.
+  useEffect(() => setPage(1), [search, colFilters]);
+  // Keep the page valid if the set shrinks for any other reason.
+  useEffect(() => {
+    setPage((p) => Math.min(p, Math.max(1, Math.ceil(visible.length / PAGE_SIZE))));
+  }, [visible.length]);
+
+  // Export the current (filtered) view.
+  function handleExport(fmt: "csv" | "xlsx") {
+    const exportRows: ReceiptExportRow[] = visible.map((r) => ({
+      receipt_no: r.receipt_no,
+      receipt_date: r.receipt_date,
+      customerCode: r.customerCode,
+      customerName: r.customerName,
+      mode: r.mode,
+      amount: Number(r.amount),
+      allocated: r.allocated,
+      unallocated: r.unallocated,
+      reference: r.reference,
+    }));
+    const stamp = new Date().toISOString().slice(0, 10);
+    if (fmt === "csv") exportReceiptsCsv(exportRows, `Receipts_${stamp}.csv`);
+    else exportReceiptsXlsx(exportRows, `Receipts_${stamp}.xlsx`);
+  }
 
   // Every column is sortable; clicking a header sets the sort state and reorders
   // rows via the `visible` memo (see RECEIPT_SORT_COLUMNS). Memoised so the column
@@ -306,6 +354,9 @@ export default function ReceiptListPage() {
 
   const customizeButton = <ColumnSettingsTrigger onCustomize={openCustomizeModal} onReset={requestReset} />;
 
+  const actionItem =
+    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700/60";
+
   const newButton = (
     <Link
       href="/receipts/new"
@@ -338,7 +389,35 @@ export default function ReceiptListPage() {
             className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm outline-none transition-colors focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
-        <div className="sm:ml-auto">{newButton}</div>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="More actions"
+              onClick={() => setActionsOpen((o) => !o)}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-500 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5" aria-hidden>
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+              </svg>
+            </button>
+            {actionsOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setActionsOpen(false)} />
+                <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+                  <button onClick={() => { setActionsOpen(false); setImportOpen(true); }} className={actionItem}>Import receipts…</button>
+                  <button onClick={() => { setActionsOpen(false); handleExport("csv"); }} className={actionItem}>Export as CSV</button>
+                  <button onClick={() => { setActionsOpen(false); handleExport("xlsx"); }} className={actionItem}>Export as Excel (.xlsx)</button>
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-700/60" />
+                  <button onClick={() => { setActionsOpen(false); downloadReceiptSample(); }} className={actionItem}>Download sample template</button>
+                </div>
+              </>
+            )}
+          </div>
+          {newButton}
+        </div>
       </div>
 
       {error && (
@@ -388,7 +467,7 @@ export default function ReceiptListPage() {
         <>
           <DataTable
             columns={columns}
-            rows={visible}
+            rows={paged}
             stickyHeader
             onRowClick={(r) => router.push(`/receipts/${r.id}`)}
             selectable
@@ -397,17 +476,31 @@ export default function ReceiptListPage() {
             headerAccessory={customizeButton}
             empty="No receipts match your search."
           />
+          {pageCount > 1 && (
+            <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
+              <Pagination page={page} pageCount={pageCount} onChange={setPage} />
+            </div>
+          )}
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-            Showing {visible.length} of {rows.length} receipts
-            {selected.size > 0 && (
-              <span className="font-medium text-brand"> · {selected.size} selected</span>
-            )}
-            {" · "}click a row for details
+            {visible.length > 0
+              ? `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, visible.length)} of ${visible.length} receipts`
+              : "No receipts match your search"}
+            {selected.size > 0 && <span className="font-medium text-brand"> · {selected.size} selected</span>}
+            {visible.length > 0 && " · click a row for details"}
           </p>
         </>
       )}
 
       {columnOverlay}
+
+      {importOpen && (
+        <ImportReceiptsModal
+          customerByCode={customerByCode}
+          existingReceiptNos={existingReceiptNos}
+          onClose={() => setImportOpen(false)}
+          onImported={() => loadData()}
+        />
+      )}
     </>
   );
 }
