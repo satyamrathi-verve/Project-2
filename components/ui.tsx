@@ -406,3 +406,202 @@ export function TableSkeleton({ rows = 6, cols = 6 }: { rows?: number; cols?: nu
     </div>
   );
 }
+
+// ---- charts (hand-rolled SVG/CSS, no charting library) ---------------------
+// Every slice/bar/point color below is a literal Tailwind `text-*` class name
+// (never built from a runtime variable) so Tailwind's JIT scanner can see it
+// and actually generate the CSS — pass the class as-is from the caller.
+
+export interface DonutSlice {
+  key: string;
+  label: string;
+  value: number;
+  /** A literal Tailwind `text-*` class; used as `stroke="currentColor"` for the ring
+   *  and as the legend dot's colour (via `background-color: currentColor`). */
+  className: string;
+}
+
+/** A multi-slice ring chart with a legend — e.g. ageing buckets, status mix. */
+export function Donut({
+  slices,
+  size = 160,
+  thickness = 18,
+  centerLabel,
+  centerValue,
+}: {
+  slices: DonutSlice[];
+  size?: number;
+  thickness?: number;
+  centerLabel?: ReactNode;
+  centerValue?: ReactNode;
+}) {
+  const total = slices.reduce((s, x) => s + Math.max(x.value, 0), 0);
+  const r = (size - thickness) / 2;
+  const c = 2 * Math.PI * r;
+  const gap = total > 0 ? 2 : 0;
+  let acc = 0;
+
+  return (
+    <div className="flex flex-col items-center gap-6 sm:flex-row">
+      <div className="relative flex-none" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            strokeWidth={thickness}
+            className="stroke-slate-100 dark:stroke-slate-800"
+          />
+          {total > 0 &&
+            slices
+              .filter((s) => s.value > 0)
+              .map((s) => {
+                const frac = s.value / total;
+                const dash = Math.max(frac * c - gap, 0);
+                const offset = -acc * c;
+                acc += frac;
+                return (
+                  <circle
+                    key={s.key}
+                    cx={size / 2}
+                    cy={size / 2}
+                    r={r}
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={thickness}
+                    strokeDasharray={`${dash} ${c - dash}`}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    className={s.className}
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                  />
+                );
+              })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
+          {centerValue && <span className="text-lg font-bold leading-tight text-slate-900 dark:text-white">{centerValue}</span>}
+          {centerLabel && <span className="text-[11px] text-slate-400 dark:text-slate-500">{centerLabel}</span>}
+        </div>
+      </div>
+      <ul className="flex w-full flex-1 flex-col gap-2 text-sm">
+        {slices.map((s) => (
+          <li key={s.key} className="flex items-center justify-between gap-3">
+            <span className="flex min-w-0 items-center gap-2 text-slate-600 dark:text-slate-300">
+              <span className={cx("h-2.5 w-2.5 flex-none rounded-full", s.className)} style={{ backgroundColor: "currentColor" }} />
+              <span className="truncate">{s.label}</span>
+            </span>
+            <span className="flex-none font-medium tabular-nums text-slate-800 dark:text-slate-100">
+              {total > 0 ? `${((s.value / total) * 100).toFixed(0)}%` : "0%"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** A ranked horizontal bar list — e.g. top customers by outstanding. */
+export function HBarList({
+  rows,
+  colorClassName = "bg-brand",
+  valueFormatter = inrCompact,
+}: {
+  rows: { key: string; label: string; sub?: string; value: number }[];
+  colorClassName?: string;
+  valueFormatter?: (n: number) => string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <ul className="flex flex-col gap-3">
+      {rows.map((r, i) => (
+        <li key={r.key} className="flex items-center gap-3">
+          <span className="w-5 flex-none text-right text-xs font-semibold text-slate-400 dark:text-slate-500">{i + 1}</span>
+          <div className="min-w-0 flex-1">
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{r.label}</span>
+              <span className="flex-none text-sm font-semibold tabular-nums text-slate-900 dark:text-white">
+                {valueFormatter(r.value)}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className={cx("h-full rounded-full", colorClassName)} style={{ width: `${Math.max(2, (r.value / max) * 100)}%` }} />
+            </div>
+            {r.sub && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{r.sub}</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A line + filled-area trend chart — e.g. a cumulative running total over time. */
+export function TrendLineChart({
+  points,
+  height = 220,
+  colorClassName = "text-brand",
+}: {
+  points: { label: string; value: number }[];
+  height?: number;
+  colorClassName?: string;
+}) {
+  const max = Math.max(1, ...points.map((p) => p.value));
+  const width = Math.max(320, points.length * 90);
+  const padTop = 20;
+  const padBottom = 26;
+  const plotH = height - padTop - padBottom;
+  const stepX = points.length > 1 ? width / (points.length - 1) : width;
+
+  const coords = points.map((p, i) => ({
+    ...p,
+    x: points.length > 1 ? i * stepX : width / 2,
+    y: padTop + plotH - (p.value / max) * plotH,
+  }));
+
+  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"} ${c.x} ${c.y}`).join(" ");
+  const baseline = padTop + plotH;
+  const areaPath =
+    coords.length > 0 ? `${linePath} L ${coords[coords.length - 1].x} ${baseline} L ${coords[0].x} ${baseline} Z` : "";
+
+  return (
+    <div className="overflow-x-auto">
+      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="min-w-full">
+        {[0, 0.25, 0.5, 0.75, 1].map((f) => (
+          <line
+            key={f}
+            x1={0}
+            x2={width}
+            y1={padTop + plotH * (1 - f)}
+            y2={padTop + plotH * (1 - f)}
+            className="stroke-slate-100 dark:stroke-slate-800"
+            strokeWidth={1}
+          />
+        ))}
+        {coords.length > 0 && (
+          <>
+            <path d={areaPath} className={colorClassName} fill="currentColor" opacity={0.08} />
+            <path
+              d={linePath}
+              className={colorClassName}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {coords.map((c) => (
+              <circle key={c.label} cx={c.x} cy={c.y} r={4} className={colorClassName} fill="currentColor">
+                <title>{`${c.label}: ${inr(c.value)}`}</title>
+              </circle>
+            ))}
+          </>
+        )}
+        {coords.map((c) => (
+          <text key={`label-${c.label}`} x={c.x} y={height - 8} textAnchor="middle" className="fill-slate-500 text-[10px] dark:fill-slate-400">
+            {c.label}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}

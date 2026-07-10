@@ -16,9 +16,18 @@
   "As On Date" is the reference point for the whole page: it decides what
   counts as this week / this month / overdue, both for the KPI cards and for
   the weekly buckets. The Customer and Collection Status filters only narrow
-  down which invoices feed the table and chart below — the KPI cards always
+  down which invoices feed the table and charts below — the KPI cards always
   reflect the full book, so they're a stable headline number regardless of
   how you're currently filtering the detail view.
+
+  Four visuals, all hand-rolled SVG/CSS (no chart library), all derived from
+  the same weekly/invoice-level numbers already computed for the table:
+    - Weekly bar chart        — Expected Collection per week (bar height).
+    - Cumulative line chart   — running total of Expected Collection.
+    - Ageing donut            — outstanding split into Current/1-30/31-60/
+                                61-90/90+ day buckets (day-precision, same
+                                math as the Overdue KPI card).
+    - Top 10 customers        — ranked horizontal bars by outstanding.
 */
 
 import { useEffect, useMemo, useState } from "react";
@@ -28,7 +37,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { FormField, inputClass } from "@/components/FormField";
 import { DataTable, type Column } from "@/components/DataTable";
-import { Card, KpiCard, KpiSkeleton, inr, inrCompact } from "@/components/ui";
+import { Card, KpiCard, KpiSkeleton, Donut, HBarList, TrendLineChart, inr, inrCompact, type DonutSlice } from "@/components/ui";
 
 type InvoiceRow = {
   id: string;
@@ -70,6 +79,37 @@ function mondayOf(d: string) {
 }
 function formatShort(d: string) {
   return new Date(`${d}T00:00:00Z`).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+}
+// Whole days from `dueDate` to `asOnDate` — positive once an invoice is overdue.
+function ageingDays(dueDate: string, asOnDate: string) {
+  return Math.round((Date.parse(`${asOnDate}T00:00:00Z`) - Date.parse(`${dueDate}T00:00:00Z`)) / 86400000);
+}
+
+// Ageing buckets for the donut chart — Current (not yet due), then 30-day
+// bands of how many days past the due date the invoice is.
+type BucketKey = "current" | "d1_30" | "d31_60" | "d61_90" | "d90_plus";
+const BUCKET_ORDER: BucketKey[] = ["current", "d1_30", "d31_60", "d61_90", "d90_plus"];
+const BUCKET_LABELS: Record<BucketKey, string> = {
+  current: "Current",
+  d1_30: "1–30 Days",
+  d31_60: "31–60 Days",
+  d61_90: "61–90 Days",
+  d90_plus: "90+ Days",
+};
+// Literal Tailwind classes (not built from a variable) so the JIT scanner picks them up.
+const BUCKET_CLASSNAMES: Record<BucketKey, string> = {
+  current: "text-slate-400",
+  d1_30: "text-amber-400",
+  d31_60: "text-orange-500",
+  d61_90: "text-red-500",
+  d90_plus: "text-red-700",
+};
+function bucketFor(days: number): BucketKey {
+  if (days <= 0) return "current";
+  if (days <= 30) return "d1_30";
+  if (days <= 60) return "d31_60";
+  if (days <= 90) return "d61_90";
+  return "d90_plus";
 }
 
 export default function CashflowProjectionPage() {
@@ -223,6 +263,52 @@ export default function CashflowProjectionPage() {
     return result;
   }, [filtered, asOnDate]);
 
+  // ---- customer names for the Top 10 chart, looked up from the customer
+  // list already fetched above — no extra query needed.
+  const customerNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of customers) map.set(c.id, c.name);
+    return map;
+  }, [customers]);
+
+  // ---- running total of Expected Collection across the weekly rows above,
+  // in the same chronological order (Overdue first, then week by week).
+  const cumulativePoints = useMemo(() => {
+    let running = 0;
+    return weekRows.map((r) => {
+      running += r.expectedCollection;
+      return { label: r.label, value: running };
+    });
+  }, [weekRows]);
+
+  // ---- outstanding receivables grouped into ageing buckets for the donut —
+  // same day-precision ageing math as the KPI cards, just bucketed further.
+  const ageingSlices = useMemo<DonutSlice[]>(() => {
+    const totals: Record<BucketKey, number> = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90_plus: 0 };
+    for (const { inv, outstanding } of filtered) {
+      const bucket = bucketFor(ageingDays(inv.due_date, asOnDate));
+      totals[bucket] += outstanding;
+    }
+    return BUCKET_ORDER.map((key) => ({
+      key,
+      label: BUCKET_LABELS[key],
+      value: totals[key],
+      className: BUCKET_CLASSNAMES[key],
+    }));
+  }, [filtered, asOnDate]);
+
+  // ---- top 10 customers by outstanding balance, from the filtered invoice set.
+  const topCustomers = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const { inv, outstanding } of filtered) {
+      totals.set(inv.customer_id, (totals.get(inv.customer_id) ?? 0) + outstanding);
+    }
+    return Array.from(totals.entries())
+      .map(([customerId, value]) => ({ key: customerId, label: customerNameById.get(customerId) ?? "Unknown customer", value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [filtered, customerNameById]);
+
   const maxExpected = Math.max(1, ...weekRows.map((r) => r.expectedCollection));
 
   function handleExportCsv() {
@@ -368,34 +454,61 @@ export default function CashflowProjectionPage() {
           <DataTable columns={columns} rows={weekRows} empty="No open, partial or overdue invoices match your filters." />
 
           {weekRows.length > 0 && (
-            <Card
-              className="mt-6"
-              title="Cashflow Chart"
-              subtitle="Expected Collection by week."
-            >
-              <div className="overflow-x-auto overflow-y-visible">
-                <div className="flex min-w-full items-end gap-4 px-2 pb-1" style={{ height: 260 }}>
-                  {weekRows.map((r) => {
-                    const heightPx = Math.max(6, (r.expectedCollection / maxExpected) * 170);
-                    return (
-                      <div key={r.id} className="flex min-w-[72px] flex-1 flex-col items-center justify-end gap-2">
-                        <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-600 dark:text-slate-300">
-                          {inrCompact(r.expectedCollection)}
-                        </span>
-                        <div
-                          title={`${r.label}: ${inr(r.expectedCollection)}`}
-                          className={`w-full rounded-t-md transition-all ${r.isOverdue ? "bg-red-400 dark:bg-red-500/70" : "bg-brand"}`}
-                          style={{ height: heightPx }}
-                        />
-                        <span className="max-w-[80px] text-center text-[11px] leading-tight text-slate-500 dark:text-slate-400">
-                          {r.label}
-                        </span>
-                      </div>
-                    );
-                  })}
+            <>
+              <Card className="mt-6" title="Weekly Expected Collections" subtitle="Expected Collection by week.">
+                <div className="overflow-x-auto overflow-y-visible">
+                  <div className="flex min-w-full items-end gap-4 px-2 pb-1" style={{ height: 260 }}>
+                    {weekRows.map((r) => {
+                      const heightPx = Math.max(6, (r.expectedCollection / maxExpected) * 170);
+                      return (
+                        <div key={r.id} className="flex min-w-[72px] flex-1 flex-col items-center justify-end gap-2">
+                          <span className="whitespace-nowrap text-xs font-medium tabular-nums text-slate-600 dark:text-slate-300">
+                            {inrCompact(r.expectedCollection)}
+                          </span>
+                          <div
+                            title={`${r.label}: ${inr(r.expectedCollection)}`}
+                            className={`w-full rounded-t-md transition-all ${r.isOverdue ? "bg-red-400 dark:bg-red-500/70" : "bg-brand"}`}
+                            style={{ height: heightPx }}
+                          />
+                          <span className="max-w-[80px] text-center text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+                            {r.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              </Card>
+
+              <Card
+                className="mt-6"
+                title="Cumulative Expected Collections"
+                subtitle="Running total of Expected Collection, week over week."
+              >
+                <TrendLineChart points={cumulativePoints} />
+              </Card>
+
+              <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                <Card
+                  title="Outstanding Receivables by Ageing Bucket"
+                  subtitle="Share of total outstanding in each ageing bucket, as on the selected date."
+                >
+                  <Donut
+                    slices={ageingSlices}
+                    centerValue={inrCompact(ageingSlices.reduce((s, x) => s + x.value, 0))}
+                    centerLabel="Outstanding"
+                  />
+                </Card>
+
+                <Card title="Top 10 Customers by Outstanding" subtitle="Highest outstanding balances, for the invoices currently in view.">
+                  {topCustomers.length > 0 ? (
+                    <HBarList rows={topCustomers} />
+                  ) : (
+                    <p className="text-sm text-slate-400 dark:text-slate-500">No customers to show.</p>
+                  )}
+                </Card>
               </div>
-            </Card>
+            </>
           )}
         </>
       )}
