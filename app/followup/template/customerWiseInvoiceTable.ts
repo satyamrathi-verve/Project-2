@@ -10,6 +10,38 @@
 import type { InvoiceRow } from "@/app/reports/ageing/analytics";
 import { formatDate, formatINR } from "@/app/reports/ageing/analytics";
 
+// The Overdue Filter dropdown shown above the Customer picker in Customer
+// Wise mode. This is a Reminder-Template-only view on top of the same
+// ageingDays field AR Ageing already computes — it doesn't recompute ageing,
+// it just narrows which of that customer's rows make the table.
+export type OverdueFilterId = "all" | "1-30" | "31-60" | "61-90" | "91-180" | "180-plus";
+
+export const OVERDUE_FILTER_OPTIONS: { id: OverdueFilterId; label: string }[] = [
+  { id: "all", label: "All Outstanding Invoices" },
+  { id: "1-30", label: "1–30 Days" },
+  { id: "31-60", label: "31–60 Days" },
+  { id: "61-90", label: "61–90 Days" },
+  { id: "91-180", label: "91–180 Days" },
+  { id: "180-plus", label: "More than 180 Days" },
+];
+
+export function filterByOverdueRange(rows: InvoiceRow[], filter: OverdueFilterId): InvoiceRow[] {
+  switch (filter) {
+    case "1-30":
+      return rows.filter((r) => r.ageingDays >= 1 && r.ageingDays <= 30);
+    case "31-60":
+      return rows.filter((r) => r.ageingDays >= 31 && r.ageingDays <= 60);
+    case "61-90":
+      return rows.filter((r) => r.ageingDays >= 61 && r.ageingDays <= 90);
+    case "91-180":
+      return rows.filter((r) => r.ageingDays >= 91 && r.ageingDays <= 180);
+    case "180-plus":
+      return rows.filter((r) => r.ageingDays > 180);
+    default:
+      return rows;
+  }
+}
+
 export interface CustomerWiseInvoiceRow {
   invoiceDate: string;
   invoiceNo: string;
@@ -47,9 +79,13 @@ function escapeHtml(s: string): string {
 
 // Renders the table + the two totals lines below it, as one HTML block —
 // this whole block is what {invoice_table} expands to in the preview.
-export function renderInvoiceTableHtml(rows: CustomerWiseInvoiceRow[]): string {
+export function renderInvoiceTableHtml(rows: CustomerWiseInvoiceRow[], overdueFilter: OverdueFilterId = "all"): string {
   if (rows.length === 0) {
-    return `<p style="margin:8px 0;color:#64748b;font-size:13px;">No outstanding invoices found for this customer.</p>`;
+    const message =
+      overdueFilter === "all"
+        ? "No outstanding invoices found for this customer."
+        : "No outstanding invoices found for this customer in the selected overdue range.";
+    return `<p style="margin:8px 0;color:#64748b;font-size:13px;">${message}</p>`;
   }
 
   const totalOutstanding = rows.reduce((sum, r) => sum + r.pendingAmount, 0);

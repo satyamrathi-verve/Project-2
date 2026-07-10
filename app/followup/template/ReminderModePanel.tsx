@@ -1,7 +1,9 @@
 "use client";
 
 import { SearchableSelect, type SearchableSelectOption } from "@/components/SearchableSelect";
+import { inputClass } from "@/components/FormField";
 import type { ReminderScope } from "./reminderTemplateConfig";
+import { OVERDUE_FILTER_OPTIONS, type OverdueFilterId } from "./customerWiseInvoiceTable";
 
 /*
   Reminder Mode — sits above everything else on the page since it decides
@@ -20,6 +22,8 @@ export function ReminderModePanel({
   invoiceOptions,
   selectedInvoiceId,
   onInvoiceChange,
+  overdueFilter,
+  onOverdueFilterChange,
 }: {
   scope: ReminderScope;
   onScopeChange: (scope: ReminderScope) => void;
@@ -29,6 +33,8 @@ export function ReminderModePanel({
   invoiceOptions: SearchableSelectOption[];
   selectedInvoiceId: string | null;
   onInvoiceChange: (id: string) => void;
+  overdueFilter: OverdueFilterId;
+  onOverdueFilterChange: (id: OverdueFilterId) => void;
 }) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
@@ -60,32 +66,53 @@ export function ReminderModePanel({
         </div>
       </fieldset>
 
-      <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Customer
-          </label>
-          <SearchableSelect
-            options={customerOptions}
-            value={selectedCustomerId ?? ""}
-            onChange={onCustomerChange}
-            placeholder="Search customer…"
-          />
-        </div>
-
-        {scope === "invoice_wise" && (
+      <div className="flex-1 space-y-4">
+        {scope === "customer_wise" && (
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              Invoice
+              Overdue Filter
             </label>
-            <SearchableSelect
-              options={invoiceOptions}
-              value={selectedInvoiceId ?? ""}
-              onChange={onInvoiceChange}
-              placeholder={selectedCustomerId ? "Search invoice…" : "Pick a customer first"}
-            />
+            <select
+              className={inputClass}
+              value={overdueFilter}
+              onChange={(e) => onOverdueFilterChange(e.target.value as OverdueFilterId)}
+            >
+              {OVERDUE_FILTER_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
         )}
+
+        <div className={scope === "invoice_wise" ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : ""}>
+          <div>
+            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Customer
+            </label>
+            <SearchableSelect
+              options={customerOptions}
+              value={selectedCustomerId ?? ""}
+              onChange={onCustomerChange}
+              placeholder="Search customer…"
+            />
+          </div>
+
+          {scope === "invoice_wise" && (
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Invoice
+              </label>
+              <SearchableSelect
+                options={invoiceOptions}
+                value={selectedInvoiceId ?? ""}
+                onChange={onInvoiceChange}
+                placeholder={selectedCustomerId ? "Search invoice…" : "Pick a customer first"}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

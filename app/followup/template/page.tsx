@@ -10,7 +10,12 @@ import type { SearchableSelectOption } from "@/components/SearchableSelect";
 import { fillReminderTemplate, formatCurrency } from "@/lib/collections";
 import type { Customer, Invoice, InvoiceItem, ReceiptAllocation, ReminderTemplate } from "@/lib/types";
 import { buildInvoiceRows, todayIso } from "@/app/reports/ageing/analytics";
-import { buildCustomerWiseRows, renderInvoiceTableHtml } from "./customerWiseInvoiceTable";
+import {
+  buildCustomerWiseRows,
+  renderInvoiceTableHtml,
+  filterByOverdueRange,
+  type OverdueFilterId,
+} from "./customerWiseInvoiceTable";
 import {
   CANONICAL_NAMES,
   DEFAULT_ATTACHMENT_OPTIONS,
@@ -58,6 +63,7 @@ export default function ReminderTemplatePage() {
   // changes what gets saved to reminder_templates; see handleScopeChange below.
   const [previewCustomerId, setPreviewCustomerId] = useState<string | null>(null);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const [overdueFilter, setOverdueFilter] = useState<OverdueFilterId>("all");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [allocations, setAllocations] = useState<ReceiptAllocation[]>([]);
@@ -228,14 +234,17 @@ export default function ReminderTemplatePage() {
     return fillReminderTemplate(text, scopeFillValues ?? SAMPLE_FILL_VALUES);
   }
 
-  // Customer Wise: every outstanding invoice for the selected customer, built
-  // the same way customerWiseInvoiceTable.ts already does — this is the exact
-  // HTML the {invoice_table} placeholder expands to.
+  // Customer Wise: every outstanding invoice for the selected customer within
+  // the chosen Overdue Filter range, built the same way
+  // customerWiseInvoiceTable.ts already does — this is the exact HTML the
+  // {invoice_table} placeholder expands to. Totals below the table follow
+  // the filter automatically since they're computed from these same rows.
   const invoiceTableHtml = useMemo(() => {
     if (scope !== "customer_wise" || !previewCustomerId) return null;
     const customerRows = invoiceRows.filter((r) => r.customerId === previewCustomerId);
-    return renderInvoiceTableHtml(buildCustomerWiseRows(customerRows, descriptionByInvoiceId));
-  }, [scope, previewCustomerId, invoiceRows, descriptionByInvoiceId]);
+    const filteredRows = filterByOverdueRange(customerRows, overdueFilter);
+    return renderInvoiceTableHtml(buildCustomerWiseRows(filteredRows, descriptionByInvoiceId), overdueFilter);
+  }, [scope, previewCustomerId, invoiceRows, descriptionByInvoiceId, overdueFilter]);
 
   function insertToken(token: string) {
     if (lastFocused === "subject" && subjectRef.current) {
@@ -341,6 +350,8 @@ export default function ReminderTemplatePage() {
               invoiceOptions={invoiceOptions}
               selectedInvoiceId={previewInvoiceId}
               onInvoiceChange={setPreviewInvoiceId}
+              overdueFilter={overdueFilter}
+              onOverdueFilterChange={setOverdueFilter}
             />
           </Card>
 
