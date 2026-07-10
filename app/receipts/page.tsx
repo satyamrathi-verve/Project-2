@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase, isConfigured } from "@/lib/supabase";
-import type { Customer, Receipt, ReceiptMode } from "@/lib/types";
+import type { Customer, Receipt } from "@/lib/types";
 import { PageHeader } from "@/components/PageHeader";
 import { DataTable, type Column } from "@/components/DataTable";
+import { ColumnFilterMenu } from "@/components/ColumnFilter";
 import { useTableSort } from "@/lib/useTableSort";
 import { sortRows, type SortColumn } from "@/lib/sortRows";
 import { NotConfigured } from "@/components/NotConfigured";
@@ -71,6 +72,27 @@ const COLUMN_DEFS: { key: ColKey; label: string }[] = [
 
 const COLS_STORAGE_KEY = "receipts.visibleColumns.v1";
 
+// The display value used for a column's per-header value filter — both the
+// checklist of distinct options and the row test compare against this string.
+function cellValue(key: ColKey, r: ReceiptRow): string {
+  switch (key) {
+    case "receipt_no":
+      return r.receipt_no;
+    case "receipt_date":
+      return r.receipt_date;
+    case "customer":
+      return r.customerName;
+    case "mode":
+      return r.mode.toUpperCase();
+    case "amount":
+      return inr(Number(r.amount));
+    case "allocation":
+      return r.unallocated > EPS ? "On account" : "Fully allocated";
+    case "reference":
+      return r.reference ?? "—";
+  }
+}
+
 export default function ReceiptListPage() {
   const router = useRouter();
   const [rows, setRows] = useState<ReceiptRow[]>([]);
@@ -78,12 +100,22 @@ export default function ReceiptListPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [modeFilter, setModeFilter] = useState<"all" | ReceiptMode>("all");
 
-  // Column-header sort is the single source of truth for row order (applied in the
-  // `visible` memo). Starts unsorted, so rows show in their original fetch order
-  // (newest first) until a header is clicked — and a third click returns to it.
-  const { sort: columnSort, toggleSort } = useTableSort();
+  // Column-header sort state. Sorting is driven entirely from the per-column
+  // filter popups (Sort ascending / descending), applied in the `visible` memo.
+  const { sort: columnSort, setSort: setColumnSort } = useTableSort();
+
+  // Per-column value filters (Excel-style). A key present = only those values pass;
+  // absent = no filter on that column.
+  const [colFilters, setColFilters] = useState<Partial<Record<ColKey, Set<string>>>>({});
+  const setColumnFilter = useCallback((key: ColKey, next: Set<string> | undefined) => {
+    setColFilters((prev) => {
+      const copy = { ...prev };
+      if (next === undefined) delete copy[key];
+      else copy[key] = next;
+      return copy;
+    });
+  }, []);
 
   // Row selection (presentation state only).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -151,22 +183,41 @@ export default function ReceiptListPage() {
     };
   }, [rows]);
 
+  // Distinct values per column for the header filter checklists — computed from
+  // the full dataset (not the filtered view) so every value stays selectable.
+  const columnOptions = useMemo(() => {
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+    const out = {} as Record<ColKey, string[]>;
+    for (const { key } of COLUMN_DEFS) {
+      const set = new Set<string>();
+      for (const r of rows) set.add(cellValue(key, r));
+      out[key] = Array.from(set).sort((a, b) => collator.compare(a, b));
+    }
+    return out;
+  }, [rows]);
+
   // ---- filter + sort -------------------------------------------------------
-  // Filter first, then apply the active column sort. Memoised so re-sorting is
-  // instant (no refetch) and only recomputes when a dependency changes.
+  // Search + per-column value filters, then apply the active column sort. Memoised
+  // so re-sorting/re-filtering is instant (no refetch) and only recomputes when a
+  // dependency changes.
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const activeFilters = Object.entries(colFilters) as [ColKey, Set<string>][];
     const filtered = rows.filter((r) => {
-      if (modeFilter !== "all" && r.mode !== modeFilter) return false;
-      if (!q) return true;
-      return (
-        r.receipt_no.toLowerCase().includes(q) ||
-        r.customerName.toLowerCase().includes(q) ||
-        (r.reference ?? "").toLowerCase().includes(q)
-      );
+      if (q) {
+        const match =
+          r.receipt_no.toLowerCase().includes(q) ||
+          r.customerName.toLowerCase().includes(q) ||
+          (r.reference ?? "").toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      for (const [key, set] of activeFilters) {
+        if (!set.has(cellValue(key, r))) return false;
+      }
+      return true;
     });
     return sortRows(filtered, columnSort, RECEIPT_SORT_COLUMNS);
-  }, [rows, search, modeFilter, columnSort]);
+  }, [rows, search, colFilters, columnSort]);
 
   // Every column is sortable; clicking a header sets the sort state and reorders
   // rows via the `visible` memo (see RECEIPT_SORT_COLUMNS). Memoised so the column
@@ -174,9 +225,7 @@ export default function ReceiptListPage() {
   const allColumns: Record<ColKey, Column<ReceiptRow>> = useMemo(() => ({
     receipt_no: {
       key: "receipt_no",
-      header: "Receipt #",
-      sortable: true,
-      render: (r) => (
+      header: "Receipt #",      render: (r) => (
         <Link
           href={`/receipts/${r.id}`}
           onClick={(e) => e.stopPropagation()}
@@ -188,35 +237,27 @@ export default function ReceiptListPage() {
     },
     receipt_date: {
       key: "receipt_date",
-      header: "Date",
-      sortable: true,
-      render: (r) => <span className="text-slate-600 dark:text-slate-300">{r.receipt_date}</span>,
+      header: "Date",      render: (r) => <span className="text-slate-600 dark:text-slate-300">{r.receipt_date}</span>,
     },
     customer: {
       key: "customer",
-      header: "Customer",
-      sortable: true,
-      render: (r) => (
+      header: "Customer",      render: (r) => (
         <span className="flex items-center gap-3">
           <Avatar name={r.customerName} size="sm" />
           <span className="truncate font-medium text-slate-800 dark:text-slate-100">{r.customerName}</span>
         </span>
       ),
     },
-    mode: { key: "mode", header: "Mode", sortable: true, render: (r) => <ModeBadge mode={r.mode} /> },
+    mode: { key: "mode", header: "Mode", render: (r) => <ModeBadge mode={r.mode} /> },
     amount: {
       key: "amount",
       header: "Amount",
-      className: "text-right",
-      sortable: true,
-      render: (r) => <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{inr(Number(r.amount))}</span>,
+      className: "text-right",      render: (r) => <span className="font-semibold tabular-nums text-slate-900 dark:text-white">{inr(Number(r.amount))}</span>,
     },
     allocation: {
       key: "allocation",
       header: "Allocation",
-      className: "text-right",
-      sortable: true,
-      render: (r) =>
+      className: "text-right",      render: (r) =>
         r.unallocated > EPS ? (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30">
             {inr(r.unallocated)} on account
@@ -229,9 +270,7 @@ export default function ReceiptListPage() {
     },
     reference: {
       key: "reference",
-      header: "Reference #",
-      sortable: true,
-      render: (r) =>
+      header: "Reference #",      render: (r) =>
         r.reference ? (
           <span className="text-slate-600 dark:text-slate-300">{r.reference}</span>
         ) : (
@@ -240,7 +279,30 @@ export default function ReceiptListPage() {
     },
   }), []);
 
-  const columns = useMemo(() => orderedKeys.map((k) => allColumns[k]), [orderedKeys, allColumns]);
+  // Attach the per-column sort + value filter popup to each header. Uses
+  // DataTable's own funnel + popup (column.filter); the menu contents handle
+  // sorting and value selection.
+  const columns = useMemo(
+    () =>
+      orderedKeys.map((key) => {
+        const base = allColumns[key];
+        return {
+          ...base,
+          filterActive: colFilters[key] !== undefined,
+          filter: (
+            <ColumnFilterMenu
+              options={columnOptions[key] ?? []}
+              value={colFilters[key]}
+              onChange={(next) => setColumnFilter(key, next)}
+              sortDir={columnSort?.key === key ? columnSort.dir : undefined}
+              onSortAsc={() => setColumnSort({ key, dir: "asc" })}
+              onSortDesc={() => setColumnSort({ key, dir: "desc" })}
+            />
+          ),
+        };
+      }),
+    [orderedKeys, allColumns, columnOptions, colFilters, columnSort, setColumnFilter, setColumnSort]
+  );
 
   const customizeButton = <ColumnSettingsTrigger onCustomize={openCustomizeModal} onReset={requestReset} />;
 
@@ -265,11 +327,19 @@ export default function ReceiptListPage() {
 
   return (
     <>
-      <PageHeader
-        title="Receipts"
-        subtitle="Track money received and how it's been allocated across invoices."
-        action={newButton}
-      />
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <h1 className="flex-none text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Receipts</h1>
+        <div className="relative w-full sm:w-80">
+          <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search receipt, customer, reference…"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm outline-none transition-colors focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+          />
+        </div>
+        <div className="sm:ml-auto">{newButton}</div>
+      </div>
 
       {error && (
         <div className="mb-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">{error}</div>
@@ -292,32 +362,6 @@ export default function ReceiptListPage() {
             <KpiCard label="Unallocated" value={inrCompact(kpis.unallocated)} sub="on-account balance" icon={<IconWallet className="h-5 w-5" />} accent="amber" />
           </>
         )}
-      </div>
-
-      {/* Toolbar */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-xs">
-          <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search receipt, customer, reference…"
-            className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-3 text-sm text-slate-800 shadow-sm outline-none transition-colors focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value as "all" | ReceiptMode)}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:[color-scheme:dark]"
-          >
-            <option value="all">All modes</option>
-            <option value="cash">Cash</option>
-            <option value="cheque">Cheque</option>
-            <option value="upi">UPI</option>
-            <option value="neft">NEFT</option>
-          </select>
-        </div>
       </div>
 
       {/* Table */}
@@ -351,8 +395,6 @@ export default function ReceiptListPage() {
             selectedIds={selected}
             onSelectionChange={(ids) => setSelected(new Set(ids))}
             headerAccessory={customizeButton}
-            sort={columnSort}
-            onSortChange={toggleSort}
             empty="No receipts match your search."
           />
           <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
