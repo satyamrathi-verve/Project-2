@@ -43,7 +43,7 @@ export interface ReminderTypeConfig {
 
 const CUSTOMER_WISE_SUBJECT = "Outstanding Invoices – Payment Follow Up";
 const CUSTOMER_WISE_INTRO =
-  "Our records indicate the following outstanding invoices are pending payment. Please find the details below.";
+  "Our records indicate the following outstanding invoices are pending payment. Kindly arrange payment at your earliest convenience.";
 
 export const REMINDER_TYPES: ReminderTypeConfig[] = [
   {

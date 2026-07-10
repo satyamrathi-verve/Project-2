@@ -19,7 +19,6 @@ export function LivePreviewPanel({
   subject,
   body,
   invoiceTableHtml,
-  invoiceTableError,
   attachmentIds,
   attachmentOptions,
   signature,
@@ -28,17 +27,16 @@ export function LivePreviewPanel({
   reminderType: ReminderTypeConfig;
   subject: string;
   body: string;
-  /** Rendered HTML for the {invoice_table} token — only meaningful in Customer Wise. */
+  /** Rendered HTML for the {invoice_table} token — only meaningful in Customer Wise, once a customer is picked. */
   invoiceTableHtml?: string | null;
-  invoiceTableError?: string | null;
   attachmentIds: string[];
   attachmentOptions: AttachmentOption[];
   signature: string;
   missingTokens: string[];
 }) {
   const enabledAttachments = attachmentOptions.filter((a) => attachmentIds.includes(a.id));
-  const showTableSlot = body.includes("{invoice_table}") && (Boolean(invoiceTableHtml) || Boolean(invoiceTableError));
-  const [bodyBefore, bodyAfter] = showTableSlot ? body.split("{invoice_table}") : [body, ""];
+  const hasTableToken = body.includes("{invoice_table}");
+  const [bodyBefore, bodyAfter] = hasTableToken ? body.split("{invoice_table}") : [body, ""];
 
   return (
     <div className="sticky top-6">
@@ -63,16 +61,15 @@ export function LivePreviewPanel({
           {body ? (
             <div className="max-w-none text-sm text-slate-700 [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 dark:text-slate-300">
               <div dangerouslySetInnerHTML={{ __html: renderFormattedHtml(bodyBefore) }} />
-              {showTableSlot && invoiceTableError ? (
-                <p className="my-2 text-xs text-red-600 dark:text-red-400">
-                  Couldn&apos;t load the invoice table: {invoiceTableError}
-                </p>
-              ) : (
-                showTableSlot && (
-                  <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: invoiceTableHtml ?? "" }} />
-                )
-              )}
-              {showTableSlot && <div dangerouslySetInnerHTML={{ __html: renderFormattedHtml(bodyAfter) }} />}
+              {hasTableToken &&
+                (invoiceTableHtml ? (
+                  <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: invoiceTableHtml }} />
+                ) : (
+                  <p className="my-2 text-xs text-slate-400 dark:text-slate-500">
+                    (invoice table — pick a customer in Reminder Mode above to preview)
+                  </p>
+                ))}
+              {hasTableToken && <div dangerouslySetInnerHTML={{ __html: renderFormattedHtml(bodyAfter) }} />}
             </div>
           ) : (
             <p className="text-sm text-slate-300 dark:text-slate-600">(empty)</p>

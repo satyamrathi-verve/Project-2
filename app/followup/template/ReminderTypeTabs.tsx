@@ -49,44 +49,6 @@ export function ReminderTypeTabs({
   );
 }
 
-// Invoice Wise (one email per invoice — the original behaviour) vs Customer
-// Wise (one roll-up email per customer, built around {invoice_table}). Each
-// of the 4 reminder stages above has its own pair of templates, one per scope.
-export function ScopeToggle({
-  scope,
-  onChange,
-}: {
-  scope: ReminderScope;
-  onChange: (scope: ReminderScope) => void;
-}) {
-  const options: { id: ReminderScope; label: string }[] = [
-    { id: "invoice_wise", label: "Invoice Wise" },
-    { id: "customer_wise", label: "Customer Wise" },
-  ];
-  return (
-    <div role="tablist" aria-label="Reminder scope" className="mb-3 inline-flex rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800/60">
-      {options.map((o) => {
-        const active = scope === o.id;
-        return (
-          <button
-            key={o.id}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(o.id)}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-              active
-                ? "bg-white text-brand shadow-sm dark:bg-slate-900 dark:text-blue-300"
-                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function OtherTemplatesSelect({
   templates,
   activeId,
