@@ -1,12 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { supabase, isConfigured } from "@/lib/supabase";
 import { PageHeader } from "@/components/PageHeader";
 import { NotConfigured } from "@/components/NotConfigured";
 import { DataTable } from "@/components/DataTable";
 import type { Customer, Invoice, InvoiceItem, Receipt, ReceiptAllocation } from "@/lib/types";
-
-// Always hit Supabase fresh — outstanding balances change as receipts come in.
-export const dynamic = "force-dynamic";
 
 type AllocationWithReceipt = ReceiptAllocation & { receipt: Receipt | null };
 type InvoiceDetail = Invoice & {
@@ -41,8 +42,33 @@ function Badge({ label, tone }: { label: string; tone: "green" | "amber" | "slat
   );
 }
 
-export default async function InvoiceViewPage({ params }: { params: { id: string } }) {
-  if (!isConfigured || !supabase) {
+export default function InvoiceViewPage() {
+  const params = useParams<{ id: string }>();
+  const id = params?.id;
+  const [data, setData] = useState<InvoiceDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isConfigured || !supabase || !id) {
+      setLoading(false);
+      return;
+    }
+    (async () => {
+      // One query: the invoice plus its customer, line items, and receipt allocations
+      // (with each allocation's parent receipt), using Supabase relationship embedding.
+      const { data, error } = await supabase!
+        .from("invoices")
+        .select("*, customer:customers(*), invoice_items(*), receipt_allocations(*, receipt:receipts(*))")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) setError(error.message);
+      else setData((data as InvoiceDetail | null) ?? null);
+      setLoading(false);
+    })();
+  }, [id]);
+
+  if (!isConfigured) {
     return (
       <>
         <PageHeader title="Invoice" />
@@ -51,15 +77,16 @@ export default async function InvoiceViewPage({ params }: { params: { id: string
     );
   }
 
-  // One query: the invoice plus its customer, line items, and receipt allocations
-  // (with each allocation's parent receipt), using Supabase's relationship embedding.
-  const { data, error } = await supabase
-    .from("invoices")
-    .select(
-      "*, customer:customers(*), invoice_items(*), receipt_allocations(*, receipt:receipts(*))"
-    )
-    .eq("id", params.id)
-    .maybeSingle();
+  if (loading) {
+    return (
+      <>
+        <PageHeader title="Invoice" />
+        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+          Loading invoice…
+        </div>
+      </>
+    );
+  }
 
   if (error) {
     return (
@@ -67,7 +94,7 @@ export default async function InvoiceViewPage({ params }: { params: { id: string
         <PageHeader title="Invoice" />
         <div className="rounded-xl border border-red-300 bg-red-50 p-6 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           <p className="font-semibold">Couldn&apos;t load this invoice.</p>
-          <p className="mt-1 text-sm">{error.message}</p>
+          <p className="mt-1 text-sm">{error}</p>
         </div>
       </>
     );
@@ -78,7 +105,7 @@ export default async function InvoiceViewPage({ params }: { params: { id: string
       <>
         <PageHeader
           title="Invoice not found"
-          subtitle={`No invoice matches id ${params.id}.`}
+          subtitle={`No invoice matches id ${id}.`}
           action={
             <Link href="/invoices" className={secondaryButton}>
               Back to Invoice List
@@ -89,7 +116,7 @@ export default async function InvoiceViewPage({ params }: { params: { id: string
     );
   }
 
-  const invoice = data as InvoiceDetail;
+  const invoice = data;
   const customer = invoice.customer;
   const items = invoice.invoice_items ?? [];
   const allocations = invoice.receipt_allocations ?? [];
